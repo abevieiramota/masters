@@ -5,8 +5,8 @@ from unidecode import unidecode
 import glob
 from itertools import product
 
-
-BLEU_RE = re.compile(r'BLEU\ =\ ([\d\.]*),')
+BLEU_RE = re.compile((r'BLEU\ =\ (?P<bleu>.*?),\ (?P<bleu_1>.*?)/'
+                      r'(?P<bleu_2>.*?)/(?P<bleu_3>.*?)/(?P<bleu_4>.*?)\ '))
 METEOR_RE = re.compile(r'Final score:\s+([\d\.]+)\n')
 TER_RE = re.compile(r'Total\ TER:\ ([\d\.]+)\ \(')
 
@@ -30,8 +30,8 @@ def evaluate_texts(model, subset, references):
                 input=f.read()
                         )
 
-    result['bleu'] = float(BLEU_RE.findall(
-            bleu_result.stdout.decode('utf-8'))[0])
+    result.update(BLEU_RE.match(
+            bleu_result.stdout.decode('utf-8')).groupdict())
 
     # meteor
     refs_str = '_'.join(str(r) for r in references)
@@ -56,8 +56,8 @@ def evaluate_texts(model, subset, references):
              ],
             stdout=subprocess.PIPE)
 
-    result['meteor'] = float(METEOR_RE.findall(
-            meteor_result.stdout.decode('utf-8'))[0])
+    result['meteor'] = METEOR_RE.findall(
+            meteor_result.stdout.decode('utf-8'))[0]
 
     # ter
     ter_references = f'references/{subset}_reference{refs_str}.ter'
@@ -74,7 +74,7 @@ def evaluate_texts(model, subset, references):
             ],
             stdout=subprocess.PIPE)
 
-    result['ter'] = float(TER_RE.findall(ter_result.stdout.decode('utf-8'))[0])
+    result['ter'] = TER_RE.findall(ter_result.stdout.decode('utf-8'))[0]
 
     return result
 

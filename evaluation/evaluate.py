@@ -46,7 +46,17 @@ def bleu(model, subset, references):
                 input=f.read()
                         )
 
-    return BLEU_RE.match(bleu_result.stdout.decode('utf-8')).groupdict()
+    results = []
+
+    for k, v in BLEU_RE.match(
+            bleu_result.stdout.decode('utf-8')).groupdict().items():
+
+        results.append(dict(subset=subset,
+                            references=references,
+                            metric=k,
+                            value=v))
+
+    return results
 
 
 METEOR_RE = re.compile(r'Final score:\s+([\d\.]+)\n')
@@ -79,8 +89,11 @@ def meteor(model, subset, references):
              ],
             stdout=subprocess.PIPE)
 
-    return {'meteor': METEOR_RE.findall(
-            meteor_result.stdout.decode('utf-8'))[0]}
+    return [dict(subset=subset,
+                 references=references,
+                 metric='meteor',
+                 value=METEOR_RE.findall(
+                         meteor_result.stdout.decode('utf-8'))[0])]
 
 
 TER_RE = re.compile(r'Total\ TER:\ ([\d\.]+)\ \(')
@@ -107,12 +120,97 @@ def ter(model, subset, references):
             ],
             stdout=subprocess.PIPE)
 
-    return {'ter': TER_RE.findall(ter_result.stdout.decode('utf-8'))[0]}
+    return [dict(subset=subset,
+                 references=references,
+                 metric='ter',
+                 value=TER_RE.findall(ter_result.stdout.decode('utf-8'))[0])]
+
+
+def avg_n_tokens(model, subset, references):
+
+    preprocessed_filepath = model_preprocessed_filepath(model, subset)
+
+    total_tokens = 0
+    total_texts = 0
+
+    with open(preprocessed_filepath, 'r', encoding='utf-8') as f:
+
+        for line in f:
+
+            total_texts += 1
+            total_tokens += len(line.split(' '))
+
+    return [dict(subset=subset,
+                 references=references,
+                 metric='avg_n_tokens',
+                 value=total_tokens / total_texts)]
+
+
+def avg_n_stop_words(model, subset, references):
+
+    from nltk.corpus import stopwords
+
+    sws = stopwords.words('english')
+
+    preprocessed_filepath = model_preprocessed_filepath(model, subset)
+
+    total_stops = 0
+    total_tokens = 0
+    avg_n_stop_word = []
+
+    with open(preprocessed_filepath, 'r', encoding='utf-8') as f:
+
+        for line in f:
+
+            tokens = line.split(' ')
+            stops = [w for w in tokens if w in sws]
+            total_stops += len(stops)
+            total_tokens += len(tokens)
+            avg_n_stop_word.append(len(stops) / len(tokens))
+
+    return [dict(subset=subset,
+                 references=references,
+                 metric='avg_n_stop_words',
+                 value=total_stops / total_tokens),
+            dict(subset=subset,
+                 references=references,
+                 metric='macro_avg_n_stop_words',
+                 value=sum(avg_n_stop_word) / len(avg_n_stop_word))]
 
 
 SYSTEM_EVALUATION_METHODS = {'bleu': bleu,
                              'meteor': meteor,
-                             'ter': ter}
+                             'ter': ter,
+                             'avg_n_tokens': avg_n_tokens,
+                             'avg_n_stop_words': avg_n_stop_words}
+
+
+def get_already_calculated_system_eval(system_eval_filepath):
+
+    if not os.path.isfile(system_eval_filepath):
+        return []
+
+    with open(system_eval_filepath, 'r', encoding='utf-8') as f:
+
+        reader = csv.DictReader(f)
+
+        calculated_evals = [(r['subset'], r['references'], r['metric'])
+                            for r in reader]
+
+        return calculated_evals
+
+
+def evaluate_all_systems():
+
+    systems_filepaths = glob.glob(os.path.join(BASE_DIR,
+                                               '../data/models/*'))
+
+    # yes, I'm using system and model interchangeably
+    model_names = [os.path.basename(s) for s in systems_filepaths]
+
+    for model in model_names:
+
+        evaluate_system(model)
 
 
 def evaluate_system(model, subsets=None, references_list=None, methods=None):
@@ -128,31 +226,38 @@ def evaluate_system(model, subsets=None, references_list=None, methods=None):
     if methods is None:
         methods = SYSTEM_EVALUATION_METHODS.keys()
 
+    system_eval_filepath = os.path.join(BASE_DIR,
+                                        (f'../data/models/{model}/'
+                                         'system_evaluation.csv'))
+
+    calculated_evals = get_already_calculated_system_eval(system_eval_filepath)
+
     all_results = []
 
     for subset, references in product(subsets, references_list):
 
-        result = {'subset': subset,
-                  'references': references}
-
         for method in methods:
-            eval_function = SYSTEM_EVALUATION_METHODS[method]
-            result.update(eval_function(model, subset, references))
 
-        all_results.append(result)
+            if (subset, str(references), method) not in calculated_evals:
 
-    out_filepath = os.path.join(BASE_DIR,
-                                (f'../data/models/{model}/'
-                                 'system_evaluation.csv'))
+                eval_function = SYSTEM_EVALUATION_METHODS[method]
+                metrics_values = eval_function(model, subset, references)
 
-    with open(out_filepath, 'w', encoding='utf-8') as f:
-        fieldnames = all_results[0].keys()
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+                all_results.extend(metrics_values)
 
-        writer.writeheader()
+    already_created = os.path.isfile(system_eval_filepath)
+
+    with open(system_eval_filepath, 'a', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=['subset',
+                                               'references',
+                                               'metric',
+                                               'value'])
+
+        if not already_created:
+            writer.writeheader()
         writer.writerows(all_results)
 
-    return out_filepath
+    return system_eval_filepath
 
 
 TOKENIZER_RE = re.compile(r'(\W)')

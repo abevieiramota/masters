@@ -83,7 +83,7 @@ def meteor(model, subset, references):
                     'en',
                     '-norm',
                     '-r',
-                    '3',
+                    str(len(references)),
                     '-a',
                     METEOR_PARAPHRASE_PATH
              ],
@@ -200,7 +200,7 @@ def get_already_calculated_system_eval(system_eval_filepath):
         return calculated_evals
 
 
-def evaluate_all_systems():
+def evaluate_all_systems(subsets=None, references_list=None, methods=None):
 
     systems_filepaths = glob.glob(os.path.join(BASE_DIR,
                                                '../data/models/*'))
@@ -210,7 +210,7 @@ def evaluate_all_systems():
 
     for model in model_names:
 
-        evaluate_system(model)
+        evaluate_system(model, subsets, references_list, methods)
 
 
 def evaluate_system(model, subsets=None, references_list=None, methods=None):

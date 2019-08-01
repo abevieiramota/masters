@@ -1,1 +1,0 @@
-just a test with a template-based solution

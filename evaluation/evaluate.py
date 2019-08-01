@@ -5,6 +5,7 @@ from unidecode import unidecode
 import glob
 from itertools import product
 import csv
+from decimal import Decimal
 
 
 WEBNLG_USED_REFERENCES = [0, 1, 2]
@@ -59,10 +60,11 @@ def bleu(model, subset, references):
     return results
 
 
-METEOR_RE = re.compile(r'Final score:\s+([\d\.]+)\n')
+METEOR_SYSTEM_RE = re.compile(r'Final score:\s+([\d\.]+)\n')
+METEOR_SENTENCE_RE = re.compile(r'Segment.*?score:\s+(.*?)\n')
 
 
-def meteor(model, subset, references):
+def meteor(model, subset, references, level='system'):
 
     preprocessed_filepath = model_preprocessed_filepath(model, subset)
 
@@ -87,13 +89,18 @@ def meteor(model, subset, references):
                     '-a',
                     METEOR_PARAPHRASE_PATH
              ],
-            stdout=subprocess.PIPE)
+            stdout=subprocess.PIPE).stdout.decode('utf-8')
 
-    return [dict(subset=subset,
-                 references=references,
-                 metric='meteor',
-                 value=METEOR_RE.findall(
-                         meteor_result.stdout.decode('utf-8'))[0])]
+    if level == 'system':
+
+        return [dict(subset=subset,
+                     references=references,
+                     metric='meteor',
+                     value=METEOR_SYSTEM_RE.findall(
+                             meteor_result)[0])]
+    elif level == 'sentence':
+
+        return list(map(Decimal, METEOR_SENTENCE_RE.findall(meteor_result)))
 
 
 TER_RE = re.compile(r'Total\ TER:\ ([\d\.]+)\ \(')
@@ -308,17 +315,24 @@ def preprocess_to_evaluate(model_file, subset_filepath):
                 current_out_line += 1
 
 
+def preprocess_model_to_evaluate(model_file):
+
+    subsets_files = glob.glob(os.path.join(BASE_DIR,
+                                           'subsets/*.txt'))
+
+    for subset_file in subsets_files:
+
+        preprocess_to_evaluate(model_file, subset_file)
+
+
 def preprocess_all_models():
 
     models_files = glob.glob(os.path.join(BASE_DIR,
                                           '../data/models/**/*.txt'))
 
-    subsets_files = glob.glob(os.path.join(BASE_DIR,
-                                           'subsets/*.txt'))
+    for model_file in models_files:
 
-    for model_file, subset_file in product(models_files, subsets_files):
-
-        preprocess_to_evaluate(model_file, subset_file)
+        preprocess_model_to_evaluate(model_file)
 
 
 def make_subset_ids_file(s, name):

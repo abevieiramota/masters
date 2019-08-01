@@ -199,3 +199,23 @@ old-cat,"[0, 1]",ter,0.46906285204157544
 old-cat,"[0, 1]",avg_n_tokens,22.77651905252317
 old-cat,"[0, 1]",avg_n_stop_words,0.3535449448363176
 old-cat,"[0, 1]",macro_avg_n_stop_words,0.34350892628828955
+with-template,"[0, 1, 2]",bleu,53.45
+with-template,"[0, 1, 2]",bleu_1,81.0
+with-template,"[0, 1, 2]",bleu_2,60.9
+with-template,"[0, 1, 2]",bleu_3,48.1
+with-template,"[0, 1, 2]",bleu_4,38.5
+with-template,"[0, 1, 2]",meteor,0.37959691325468625
+with-template,"[0, 1, 2]",ter,0.42461922481336817
+with-template,"[0, 1, 2]",avg_n_tokens,17.911725955204215
+with-template,"[0, 1, 2]",avg_n_stop_words,0.34593600588451634
+with-template,"[0, 1, 2]",macro_avg_n_stop_words,0.34596429363657516
+with-template,"[0, 1]",bleu,48.78
+with-template,"[0, 1]",bleu_1,78.8
+with-template,"[0, 1]",bleu_2,57.0
+with-template,"[0, 1]",bleu_3,43.8
+with-template,"[0, 1]",bleu_4,34.3
+with-template,"[0, 1]",meteor,0.3699398790574432
+with-template,"[0, 1]",ter,0.4485942668136714
+with-template,"[0, 1]",avg_n_tokens,17.911725955204215
+with-template,"[0, 1]",avg_n_stop_words,0.34593600588451634
+with-template,"[0, 1]",macro_avg_n_stop_words,0.34596429363657516

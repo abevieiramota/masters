@@ -1,16 +1,22 @@
 import xml.etree.ElementTree as ET
 import re
-from template_based import Structure, Template
+from template_based2 import Template, Triple
 from collections import defaultdict, Counter
+from template_based2 import abstract_triples
 
 
-PLACE_ENTITY_TAG = re.compile('((?:AGENT-.)|(?:PATIENT-.)|(?:BRIDGE-.))')
+RE_FIND_THIAGO_SLOT = re.compile('((?:AGENT-.)|(?:PATIENT-.)|(?:BRIDGE-.))')
 
 RE_MATCH_TEMPLATE_KEYS = re.compile(r'(AGENT\\-\d|PATIENT\\-\d|BRIDGE\\-\d)')
 TRANS_ESCAPE_TO_RE = str.maketrans('-', '_', '\\')
 
 RE_ENTITY_SPACE_DOTCOMMA = re.compile(r'(?:(?<=AGENT-\d)|(?<=PATIENT-\d)|'
                                       r'(?<=BRIDGE-\d))\ (?=[\.,])')
+
+RE_WEIRD_QUOTE_MARKS = re.compile(r'(`{1,2})|(\'{1,2})')
+
+# {{}} -> é só para escapar as chaves
+SLOT_PLACEHOLDER = '{{{}}}'
 
 
 class StructureDoesntMatchTemplate(Exception):
@@ -22,27 +28,54 @@ class StructureDoesntMatchTemplate(Exception):
 def normalize_thiagos_template(s):
     # removes single space between an entity and a dot or a comma
 
-    return RE_ENTITY_SPACE_DOTCOMMA.sub('', s)
+    s = RE_ENTITY_SPACE_DOTCOMMA.sub('', s)
+
+    return RE_WEIRD_QUOTE_MARKS.sub('"', s)
 
 
-def make_template(triples, s, template_text, r_entity_map, metadata):
+def delexicalize_triples(triples, r_entity_map):
 
-    # substitui, por exemplo, AGENT-1 por {AGENT-1}, criando templates Python
-    template_text = PLACE_ENTITY_TAG.sub(r'{\1}', template_text)
+    delexicalized_triples = []
 
-    delex_triples = []
     for t in triples:
-        delex_triples.append({'subject': r_entity_map[t['subject']],
-                              'predicate': t['predicate'],
-                              'object': r_entity_map[t['object']]})
 
-    s = Structure.from_triples(delex_triples)
+        delexicalized_t = Triple(r_entity_map[t.subject],
+                                 t.predicate,
+                                 r_entity_map[t.object])
 
-    if len(s) != len(triples):
+        delexicalized_triples.append(delexicalized_t)
 
-        raise StructureDoesntMatchTemplate()
+    return delexicalized_triples
 
-    t = Template(s, template_text, metadata)
+
+def make_template(triples, template_text, r_entity_map, metadata):
+
+    slots = RE_FIND_THIAGO_SLOT.findall(template_text)
+    positions = {k: i for i, k in enumerate(slots)}
+    # vai pra última posição as triplas que não aparecem no texto
+    positions = defaultdict(lambda: 10000, positions)
+
+    sorted_triples = sorted(triples,
+                            key=lambda t: positions[r_entity_map[t.object]])
+
+    delexicalized_triples = delexicalize_triples(sorted_triples, r_entity_map)
+    abstracted_triples = abstract_triples(sorted_triples)
+
+    for abstracted_t, delexicalized_t in zip(abstracted_triples,
+                                             delexicalized_triples):
+
+        template_text = template_text.replace(delexicalized_t.subject,
+                                              SLOT_PLACEHOLDER.format(
+                                                      abstracted_t.subject)
+                                              )
+        template_text = template_text.replace(delexicalized_t.object,
+                                              SLOT_PLACEHOLDER.format(
+                                                      abstracted_t.object)
+                                              )
+
+    # removes @ -> looks like an error
+    template_text = template_text.replace('@', '')
+    t = Template(abstracted_triples, template_text, metadata)
 
     return t
 
@@ -111,16 +144,11 @@ def extract_triples(entry_elem):
 
     for t in modifiedtripleset_elem.findall('mtriple'):
 
-        triple_dict = {}
+        sub, pred, obj = [x.strip(' "') for x in t.text.split('|')]
 
-        for triple_key, part in zip(['subject', 'predicate', 'object'],
-                                    t.text.split('|')):
+        triple = Triple(sub, pred, obj)
 
-            stripped_part = part.strip()
-
-            triple_dict[triple_key] = stripped_part
-
-        triples.append(triple_dict)
+        triples.append(triple)
 
     return triples
 
@@ -133,7 +161,7 @@ def extract_entity_map(entry_elem):
 
         ent_placeholder, ent_value = ent_elem.text.split('|')
 
-        entity_dict[ent_placeholder.strip()] = ent_value.strip()
+        entity_dict[ent_placeholder.strip()] = ent_value.strip(' "')
 
     return entity_dict
 

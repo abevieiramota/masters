@@ -1,10 +1,20 @@
 # -*- coding: utf-8 -*-
 import re
 import xml.etree.ElementTree as ET
+from reading_thiagos_templates import (
+        extract_triples,
+        read_thiagos_xml_entries)
+from collections import namedtuple
+import glob
 
 
 PARENTHESIS_RE = re.compile(r'(.*?)\((.*?)\)')
 CAMELCASE_RE = re.compile(r'([a-z])([A-Z])')
+
+
+Entry = namedtuple('Entry', ['eid',
+                             'category',
+                             'triples'])
 
 
 def preprocess_so(so):
@@ -17,28 +27,6 @@ def preprocess_so(so):
     return camelcase_preprocessed.strip('" ')
 
 
-def extract_triples(entry_elem):
-
-    triples = []
-
-    modifiedtripleset_elem = entry_elem.find('modifiedtripleset')
-
-    for t in modifiedtripleset_elem.findall('mtriple'):
-
-        triple_dict = {}
-
-        for triple_key, part in zip(['subject', 'predicate', 'object'],
-                                    t.text.split('|')):
-
-            stripped_part = part.strip()
-
-            triple_dict[triple_key] = stripped_part
-
-        triples.append(triple_dict)
-
-    return triples
-
-
 def make_test_pkl():
 
     entries = []
@@ -48,12 +36,11 @@ def make_test_pkl():
 
     for entry_elem in root.iter('entry'):
 
-        entry = {}
-        entry['eid'] = entry_elem.attrib['eid']
-        entry['category'] = entry_elem.attrib['category']
-        entry['triples'] = extract_triples(entry_elem)
+        eid = entry_elem.attrib['eid']
+        category = entry_elem.attrib['category']
+        triples = extract_triples(entry_elem)
 
-        entries.append(entry)
+        entries.append(Entry(eid, category, triples))
 
     import pickle
 
@@ -69,3 +56,21 @@ def clear_dir(dirpath):
     files = glob.glob(f'{dirpath}/*')
     for f in files:
         os.remove(f)
+
+
+def read_train_dev():
+
+    filepaths = glob.glob('../data/templates/v1.4/train/**/*.xml',
+                          recursive=True)
+    filepaths.extend(glob.glob('../data/templates/v1.4/dev/**/*.xml',
+                               recursive=True))
+
+    train_dev_entries = []
+
+    for filepath in filepaths:
+
+        entries = read_thiagos_xml_entries(filepath)
+
+        train_dev_entries.extend(entries)
+
+    return train_dev_entries

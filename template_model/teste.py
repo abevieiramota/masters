@@ -7,6 +7,7 @@ from template_selection import NthFrequentTemplateSelection
 from template_based2 import TemplateBasedModel, JustJoinTemplate
 from util import preprocess_so
 import pandas as pd
+import pickle
 
 
 with open('../data/templates/lexicalization/thiago_name_db', 'rb') as f:
@@ -14,6 +15,8 @@ with open('../data/templates/lexicalization/thiago_name_db', 'rb') as f:
 
 with open('../data/templates/lexicalization/thiago_pronoun_db', 'rb') as f:
     pronoun_db = pickle.load(f)
+
+template_db = pd.read_pickle('../data/templates/template_db/template_db')
 
 
 def lexicalize(s, ctx):
@@ -37,8 +40,6 @@ def lexicalize(s, ctx):
 
 def get_full_model(n):
 
-    template_db = pd.read_pickle('../data/templates/template_db/template_db')
-
     dp = NaiveDiscoursePlanning()
     dp.fit(template_db['template_triples'],
            template_db['cnt'])
@@ -54,8 +55,6 @@ def get_full_model(n):
 
 def get_basic_model(n):
 
-    template_db = pd.read_pickle('../data/templates/template_db/template_db')
-
     dp = SameOrderDiscoursePlanning()
 
     sa = PartitionsSentenceAggregation()
@@ -67,3 +66,7 @@ def get_basic_model(n):
     return tbm
 
 
+def get_cool_ranking():
+
+    return lambda texts: sorted(texts, key=lambda t: (t['n_fallback'],
+                                                      len(t['agg'])))

@@ -1,5 +1,5 @@
 from collections import namedtuple
-from itertools import permutations
+from itertools import permutations, product
 from more_itertools import partitions, flatten
 
 
@@ -140,6 +140,10 @@ class StructureData:
 
 class JustJoinTemplate:
 
+    def __init__(self):
+
+        self.template_text = '{s} {p} {o}.'
+
     def fill(self, triples, lexicalization_f, ctx):
 
         if len(triples) != 1:
@@ -181,25 +185,22 @@ class MakeText:
         return all_texts
 
 
-class TemplateBasedModel:
+class TemplatePlanModel:
 
     def __init__(self,
                  discourse_planning,
                  sentence_aggregation,
-                 template_selection,
-                 lexicalization):
+                 template_selection):
 
         self.discourse_planning = discourse_planning
         self.sentence_aggregation = sentence_aggregation
         self.template_selection = template_selection
-        self.lexicalization = lexicalization
 
     def _generate_without_ranking(self, entry):
 
         for plan in self.discourse_planning.plan(entry):
             for agg in self.sentence_aggregation.agg(entry, plan):
-                templates, n_fallback = self.template_selection.select(entry,
-                                                                       agg)
+                templates = self.template_selection.select(entry, agg)
 
                 if templates is not None:
                     return self.make_text(templates)
@@ -208,25 +209,19 @@ class TemplateBasedModel:
 
     def _generate_with_ranking(self, entry, ranking, return_all=False):
 
-        texts = []
+        all_texts = []
 
         for plan in self.discourse_planning.plan(entry):
             for agg in self.sentence_aggregation.agg(entry, plan):
-                templates, n_fallback = self.template_selection.select(entry,
-                                                                       agg)
+                templates = self.template_selection.select(entry, agg)
 
-                if templates is not None:
-                    text_info = {}
-                    text_info['n_fallback'] = n_fallback
-                    text_info['plan'] = plan
-                    text_info['agg'] = agg
-                    text_info['text'] = self.make_text(templates)
+                texts = self.make_text(templates)
 
-                    texts.append(text_info)
+                all_texts.extend(texts)
 
         if texts:
 
-            ranked = ranking(texts)
+            ranked = ranking(all_texts)
 
             if return_all:
                 return ranked
@@ -244,14 +239,24 @@ class TemplateBasedModel:
 
     def make_text(self, templates):
 
-        texts = []
+        all_texts = []
 
-        ctx = {'seen': set()}
+        for agg_templates in templates:
 
-        for triples, t in templates:
+            curr_texts = []
 
-            text = t.fill(triples, self.lexicalization, ctx)
+            triples = agg_templates[0]
 
-            texts.append(text)
+            for template_dict in agg_templates[1]:
 
-        return ' '.join(texts)
+                ctx = {'seen': set()}
+
+                template = template_dict['template']
+
+                text = template.fill(triples, self.lexicalization, ctx)
+
+                curr_texts.append(text)
+
+            all_texts.append(curr_texts)
+
+        return [' '.join(comb) for comb in product(*all_texts)]

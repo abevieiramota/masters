@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 from discourse_planning import (
-        NaiveDiscoursePlanning,
+        NaiveDiscourseFeature,
         SameOrderDiscoursePlanning)
 from sentence_aggregation import PartitionsSentenceAggregation
-from template_selection import NthFrequentTemplateSelection
+from template_selection import (
+        MostFrequentTemplateSelection,
+        AllTemplateSelection
+        )
 from template_based2 import TemplateBasedModel, JustJoinTemplate
 from util import preprocess_so
 import pandas as pd
@@ -46,7 +49,7 @@ def get_full_model(n):
 
     sa = PartitionsSentenceAggregation()
 
-    ts = NthFrequentTemplateSelection(n, template_db, JustJoinTemplate())
+    ts = MostFrequentTemplateSelection(n, template_db, JustJoinTemplate())
 
     tbm = TemplateBasedModel(dp, sa, ts, lexicalize)
 
@@ -59,7 +62,20 @@ def get_basic_model(n):
 
     sa = PartitionsSentenceAggregation()
 
-    ts = NthFrequentTemplateSelection(n, template_db, JustJoinTemplate())
+    ts = MostFrequentTemplateSelection(n, template_db, JustJoinTemplate())
+
+    tbm = TemplateBasedModel(dp, sa, ts, lexicalize)
+
+    return tbm
+
+
+def get_over_model():
+
+    dp = SameOrderDiscoursePlanning()
+
+    sa = PartitionsSentenceAggregation()
+
+    ts = AllTemplateSelection(template_db, JustJoinTemplate())
 
     tbm = TemplateBasedModel(dp, sa, ts, lexicalize)
 

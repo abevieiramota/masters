@@ -3,14 +3,7 @@ from collections import Counter, defaultdict
 from itertools import permutations
 
 
-class SameOrderDiscoursePlanning:
-
-    def plan(self, e):
-
-        return [e.triples]
-
-
-class NaiveDiscoursePlanning:
+class NaiveDiscoursePlanFeature:
 
     def __init__(self):
 
@@ -39,13 +32,15 @@ class NaiveDiscoursePlanning:
         self._vocabs_lens = {seq_len: len(v)
                              for seq_len, v in self._vocabs.items()}
 
-    def prob(self, triples):
+    def extract(self, triples):
 
         prob = 1
         seq = [t.predicate for t in triples]
         seq_len = len(seq)
 
-        for pair in zip(seq[:-1], seq[1:]):
+        padded_seq = ['<INI>'] + seq + ['<END>']
+
+        for pair in zip(padded_seq[:-1], padded_seq[1:]):
 
             prob_pair = (self._counters[seq_len][pair] + 1) / \
                         (self._counters[seq_len][pair[0]] +
@@ -53,13 +48,24 @@ class NaiveDiscoursePlanning:
 
             prob *= prob_pair
 
-        return prob
+        return {'feature_plan_naive_discourse_prob': prob}
+
+
+class DiscoursePlanning:
+
+    def __init__(self, template_db, feature_extractors):
+
+        self.feature_extractors = feature_extractors
 
     def plan(self, e):
 
-        perm_seqs = [(perm, self.prob(perm))
-                     for perm in permutations(e.triples)]
+        for i, perm in enumerate(permutations(e.triples)):
 
-        for perm, prob in sorted(perm_seqs, key=lambda v: v[1], reverse=True):
+            plan_f = {'plan': perm,
+                      'feature_plan_is_first': i == 0}
 
-            yield perm
+            for fe in self.feature_extractors:
+
+                plan_f.update(fe.extract(perm))
+
+            yield plan_f

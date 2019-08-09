@@ -1,8 +1,75 @@
 # -*- coding: utf-8 -*-
 from template_based2 import abstract_triples
+from collections import defaultdict
+from itertools import product
+from operator import mul
+from functools import reduce
 
 
-class NthFrequentTemplateSelection:
+class TemplateSelection:
+
+    def __init__(self, template_db, fallback=None):
+
+        self.fallback = fallback
+        triples_to_templates = defaultdict(list)
+
+        for v in template_db.to_dict(orient='record'):
+
+            triples_to_templates[v['template_triples']].append(v)
+
+        self.triples_to_templates = dict(triples_to_templates)
+
+    def select(self, agg, e):
+
+        templates = []
+
+        for agg_part in agg:
+
+            abstracted_triples = abstract_triples(agg_part)
+
+            if abstracted_triples in self.triples_to_templates:
+
+                ts = self.triples_to_templates[abstracted_triples]
+                ts = sorted(ts,
+                            key=lambda t:
+                            (t['feature_template_category'] == e.category,
+                             t['feature_template_is_active_voice']),
+                            reverse=True)
+
+                templates.append([(agg_part, t, False)
+                                  for t in ts])
+            else:
+
+                for triple in agg_part:
+
+                    templates.append(([([triple],
+                                        {'template': self.fallback,
+                                         'feature_template_freq_in_category': 0,
+                                         'feature_template_category': None,
+                                         'feature_template_n_dots': 1
+                                         },
+                                        True)]))
+
+        for item in product(*templates):
+
+            result = {}
+            result['agg'] = [i[0] for i in item]
+            result['templates'] = [i[1]['template'] for i in item]
+            result['feature_template_n_fallback'] = sum((i[2] for i in item))
+            result['feature_template_template_freqs'] = reduce(
+                    mul,
+                    (i[1]['feature_template_freq_in_category'] for i in item))
+            result['feature_template_pct_same_category'] = \
+                sum(i[1]['feature_template_category'] == e.category
+                    for i in item) / len(item)
+
+            result['feature_template_total_dots'] = \
+                sum(i[1]['feature_template_n_dots'] for i in item)
+
+            yield result
+
+
+class MostFrequentTemplateSelection:
 
     def __init__(self, n, template_db, fallback):
 

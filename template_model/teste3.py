@@ -4,6 +4,9 @@ from math import log
 from reading_thiagos_templates import read_thiagos_xml_entries
 import glob
 from more_itertools import flatten
+import re
+
+TOKENIZER_RE = re.compile(r'(\W)')
 
 
 class NaiveProb:
@@ -30,7 +33,12 @@ class NaiveProb:
 
         self._vocab_len = len(self._vocab)
 
-    def extract(self, seq):
+    def extract(self, t):
+
+        if t is None:
+            return 0
+
+        seq = TOKENIZER_RE.split(t.lower())
 
         probs = []
 
@@ -47,19 +55,17 @@ class NaiveProb:
         return sum(probs)
 
 
-def get_np():
+def get_np(td):
 
-    food_files = glob.glob('../data/templates/v1.4/train/**/Food.xml')
+    all_texts = []
 
-    for food_file in food_files:
+    for e in td:
 
-        es = read_thiagos_xml_entries(food_file)
+        texts = [l['text'] for l in e.lexes if l['text']]
 
-        texts = [[l['text'] for l in e['lexes']] for e in es]
-
-        texts = list(flatten(texts))
+        all_texts.extend(texts)
 
     np = NaiveProb()
-    np.fit([t.split() for t in texts])
+    np.fit([TOKENIZER_RE.split(t.lower()) for t in all_texts])
 
     return np

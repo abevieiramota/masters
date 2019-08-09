@@ -3,6 +3,7 @@ import re
 import xml.etree.ElementTree as ET
 from reading_thiagos_templates import (
         extract_triples,
+        extract_lexes,
         read_thiagos_xml_entries)
 from collections import namedtuple
 import glob
@@ -14,7 +15,8 @@ CAMELCASE_RE = re.compile(r'([a-z])([A-Z])')
 
 Entry = namedtuple('Entry', ['eid',
                              'category',
-                             'triples'])
+                             'triples',
+                             'lexes'])
 
 
 def preprocess_so(so):
@@ -40,11 +42,40 @@ def make_test_pkl():
         category = entry_elem.attrib['category']
         triples = extract_triples(entry_elem)
 
-        entries.append(Entry(eid, category, triples))
+        entries.append(Entry(eid, category, triples, None))
 
     import pickle
 
     with open('../evaluation/test.pkl', 'wb') as f:
+        pickle.dump(entries, f)
+
+
+def make_train_dev_pkl():
+
+    filepaths = glob.glob('../data/templates/v1.4/train/**/*.xml',
+                          recursive=True)
+    filepaths.extend(glob.glob('../data/templates/v1.4/dev/**/*.xml',
+                               recursive=True))
+
+    entries = []
+
+    for fp in filepaths:
+
+        tree = ET.parse(fp)
+        root = tree.getroot()
+
+        for entry_elem in root.iter('entry'):
+
+            eid = entry_elem.attrib['eid']
+            category = entry_elem.attrib['category']
+            triples = extract_triples(entry_elem)
+            lexes = extract_lexes(entry_elem)
+
+            entries.append(Entry(eid, category, triples, lexes))
+
+    import pickle
+
+    with open('../evaluation/train_dev.pkl', 'wb') as f:
         pickle.dump(entries, f)
 
 

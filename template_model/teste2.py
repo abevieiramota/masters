@@ -17,7 +17,7 @@ template_db = pd.read_pickle('../data/templates/template_db/template_db')
 np = NaiveDiscoursePlanFeature()
 np.fit(template_db['template_triples'],
        template_db['feature_template_cnt_in_category'])
-dp = DiscoursePlanning(template_db, [np])
+dp = DiscoursePlanning([np])
 lpbpf = LessPartsBiggerFirst()
 sa = SentenceAggregation([lpbpf])
 ts = TemplateSelection(template_db, JustJoinTemplate())
@@ -31,7 +31,7 @@ with open('../data/templates/lexicalization/thiago_pronoun_db', 'rb') as f:
 with open('../evaluation/train_dev.pkl', 'rb') as f:
     td = pickle.load(f)
 
-np = get_np(td)
+npp = get_np(td)
 
 
 def lexicalize(s, ctx):
@@ -55,7 +55,7 @@ def lexicalize(s, ctx):
 
 def get_templates(e):
 
-    plans = list(dp.plan(e))
+    plans = dp.plan(e)
 
     plan_aggs = [(plan, sa.agg(plan['plan'])) for plan in plans]
 
@@ -159,7 +159,7 @@ def get_sentence_bleu_scored(e, n1, n2, ranking):
 
         hyp['feature_entry_n_triples'] = len(e.triples)
         hyp['feature_entry_category'] = e.category
-        hyp['feature_language_model_score'] = np.extract(hyp['text'])
+        hyp['feature_language_model_score'] = npp.extract(hyp['text'])
 
     first_hyp = hypothesis[0]
     best_bleu = max(hypothesis, key=lambda h: h['bleu'])['bleu']
@@ -187,19 +187,12 @@ def get_data(td, n1, n2, ranking):
 
 def cool_ranking(t):
 
-    if len(t['agg']) == 1 and t['feature_template_n_fallback'] == 0:
-        if t['feature_plan_is_first']:
-            first_value = 10000*(1/t['feature_template_total_dots'])
-        else:
-            first_value = 1000*(1/t['feature_template_total_dots'])
-    else:
-        first_value = 0
-
-    return (first_value,
+    return (t['feature_template_n_fallback'] == 0,
+            t['feature_agg_less_parts_bigger_first']*-1,
             t['feature_template_pct_same_category'],
-            (t['feature_template_template_freqs']) *
-            (t['feature_plan_naive_discourse_prob']))
-
+            t['feature_template_len_1_freq']*t['feature_template_template_freqs'],
+            t['feature_plan_naive_discourse_prob'],
+            t['feature_template_template_freqs'])
 
 
 def get_best_text(e, n=1, ranking=lambda x: 1):
@@ -219,10 +212,47 @@ with open('../evaluation/test.pkl', 'rb') as f:
 
 def make_texts(n=1, ranking=lambda x: 1):
 
-    with open('../data/models/abe/abe.txt', 'w', encoding='utf-8') as f:
+    with open('../data/models/abe-1/abe-1.txt', 'w', encoding='utf-8') as f:
 
         for e in test:
 
             t = get_best_text(e, n, ranking)
 
             f.write('{}\n'.format(t))
+
+
+"""
+plan_aggs = [(plan, sa.agg(plan['plan'])) for plan in plans]
+
+for _, ags in plan_aggs:
+    for ag in ags:
+        tss = []
+        for ag_part in ag['agg']:
+            a_t = abstract_triples(ag_part)
+            if a_t in ts.triples_to_templates:
+                tss.append(len(ts.triples_to_templates[a_t]))
+            else:
+                tss.append(1)
+        from functools import reduce
+        total = reduce(lambda x, y: x*y, tss)
+        i += total
+        ttss.append(tss)
+"""
+
+def get_model_scores(e, n1, n2, ranking, reg):
+
+    texts = get_n_best_texts(e, n1, n2, ranking)
+
+    x = pd.DataFrame(texts)
+
+    del x['plan']
+    del x['agg']
+    del x['text']
+    del x['templates']
+
+    ys = reg.predict(x)
+
+    for tt, y in zip(texts, ys):
+        tt['predicted'] = y
+
+    return texts

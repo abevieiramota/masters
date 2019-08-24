@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 from collections import Counter
 from math import log
-from reading_thiagos_templates import read_thiagos_xml_entries
-import glob
-from more_itertools import flatten
 import re
 
 TOKENIZER_RE = re.compile(r'(\W)')

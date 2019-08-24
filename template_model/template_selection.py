@@ -4,11 +4,57 @@ from collections import defaultdict
 from itertools import product
 from operator import mul
 from functools import reduce
+import pickle
+from nltk import everygrams
+
+
+with open('../data/templates/template_db/triple_to_lex_1', 'rb') as f:
+    triple_to_lex_1 = pickle.load(f)
+
+with open('../data/templates/template_db/triple_to_lex_gt1', 'rb') as f:
+    triple_to_lex_gt1 = pickle.load(f)
+
+
+def super_sim(agg_part, t):
+
+    t_grams = set(everygrams(t.split(), 2, 3))
+
+    if len(agg_part) == 1:
+
+        lexes = triple_to_lex_gt1[agg_part[0]]
+
+        if len(lexes) == 0:
+            return 0
+
+        lexes_ngrams = [set(everygrams(lexe.split(), 2, 3)) for lexe in lexes]
+
+        return sum(len(t_grams.intersection(lexe_ngrams))/len(t_grams)
+                   for lexe_ngrams in lexes_ngrams) / len(lexes)
+    else:
+
+        total = 0
+
+        for a in agg_part:
+
+            lexes = triple_to_lex_1[a]
+
+            if len(lexes) == 0:
+                total *= 0.001
+                continue
+
+            lexes_ngrams = [set(everygrams(lexe.split(), 2, 3)) for lexe in lexes]
+
+            part = sum(len(t_grams.intersection(lexe_ngrams))/len(t_grams)
+                   for lexe_ngrams in lexes_ngrams) / len(lexes)
+
+            total += part
+
+        return total / len(agg_part)
 
 
 class TemplateSelection:
 
-    def __init__(self, template_db, fallback=None):
+    def __init__(self, template_db, fallback=None, ranker=None):
 
         self.fallback = fallback
         triples_to_templates = defaultdict(list)
@@ -18,6 +64,7 @@ class TemplateSelection:
             triples_to_templates[v['template_triples']].append(v)
 
         self.triples_to_templates = dict(triples_to_templates)
+        self.ranker = ranker if ranker else lambda x: list(x)
 
     def select(self, agg, e):
 
@@ -30,25 +77,31 @@ class TemplateSelection:
             if abstracted_triples in self.triples_to_templates:
 
                 ts = self.triples_to_templates[abstracted_triples]
-                ts = sorted(ts,
-                            key=lambda t:
-                            (t['feature_template_category'] == e.category,
-                             t['feature_template_is_active_voice']),
-                            reverse=True)
+                ts = self.ranker(ts)
 
-                templates.append([(agg_part, t, False)
-                                  for t in ts])
+                tems = []
+
+                for t in ts:
+
+                    tt = dict(t)
+                    tt['feature_template_len_1_freq'] = super_sim(agg_part,
+                                                                  t['template'].template_text)
+
+                    tems.append((agg_part, tt, False))
+
+                templates.append(tems)
             else:
 
                 for triple in agg_part:
 
-                    templates.append(([([triple],
-                                        {'template': self.fallback,
-                                         'feature_template_freq_in_category': 0,
-                                         'feature_template_category': None,
-                                         'feature_template_n_dots': 1
-                                         },
-                                        True)]))
+                    data = {'template': self.fallback,
+                            'feature_template_freq_in_category': 0,
+                            'feature_template_category': None,
+                            'feature_template_n_dots': 1,
+                            'feature_template_len_1_freq': 0
+                            }
+
+                    templates.append([([triple], data, True)])
 
         for item in product(*templates):
 
@@ -65,6 +118,8 @@ class TemplateSelection:
 
             result['feature_template_total_dots'] = \
                 sum(i[1]['feature_template_n_dots'] for i in item)
+
+            result['feature_template_len_1_freq'] = sum(i[1]['feature_template_len_1_freq'] for i in item) / len(item)
 
             yield result
 

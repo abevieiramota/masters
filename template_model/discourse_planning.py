@@ -29,9 +29,6 @@ class NaiveDiscoursePlanFeature:
                 self._vocabs[seq_len].add(pair[0])
                 self._vocabs[seq_len].add(pair[1])
 
-        self._vocabs_lens = {seq_len: len(v)
-                             for seq_len, v in self._vocabs.items()}
-
     def extract(self, triples):
 
         prob = 1
@@ -44,28 +41,40 @@ class NaiveDiscoursePlanFeature:
 
             prob_pair = (self._counters[seq_len][pair] + 1) / \
                         (self._counters[seq_len][pair[0]] +
-                         self._vocabs_lens[seq_len])
+                         len(triples))
 
             prob *= prob_pair
 
         return {'feature_plan_naive_discourse_prob': prob}
 
+    def sort(self, l_triples):
+
+        return sorted(l_triples,
+                      key=lambda t:
+                      self.extract(t)['feature_plan_naive_discourse_prob'])
+
 
 class DiscoursePlanning:
 
-    def __init__(self, template_db, feature_extractors):
+    def __init__(self, feature_extractors=None, sort=None):
+
+        if not feature_extractors:
+            feature_extractors = []
 
         self.feature_extractors = feature_extractors
+        self.sort = sort if sort else lambda x: list(x)
 
     def plan(self, e):
 
-        for i, perm in enumerate(permutations(e.triples)):
+        plans = self.sort(permutations(e.triples))
 
-            plan_f = {'plan': perm,
+        for i, plan in enumerate(plans):
+
+            plan_f = {'plan': plan,
                       'feature_plan_is_first': i == 0}
 
             for fe in self.feature_extractors:
 
-                plan_f.update(fe.extract(perm))
+                plan_f.update(fe.extract(plan))
 
             yield plan_f

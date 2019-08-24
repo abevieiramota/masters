@@ -25,11 +25,17 @@ TER_PATH = os.path.join(BASE_DIR, 'tools/tercom-0.7.25/tercom.7.25.jar')
 def model_preprocessed_filepath(model, subset, method=None):
 
     if method == 'ter':
-        return os.path.join(BASE_DIR,
-                            f'../data/models/{model}/{model}_{subset}_ter.lex')
+        filepath = os.path.join(BASE_DIR,
+                                (f'../data/models/{model}/'
+                                 f'{model}_{subset}_ter.lex'))
+    else:
+        filepath = os.path.join(BASE_DIR,
+                                f'../data/models/{model}/{model}_{subset}.lex')
 
-    return os.path.join(BASE_DIR,
-                        f'../data/models/{model}/{model}_{subset}.lex')
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(filepath)
+
+    return filepath
 
 
 def bleu(model, subset, references):
@@ -60,7 +66,7 @@ def bleu(model, subset, references):
     return results
 
 
-METEOR_SYSTEM_RE = re.compile(r'Final score:\s+([\d\.]+)\n')
+METEOR_SYSTEM_RE = re.compile(r'Final score:\s+([\d\.]+)')
 METEOR_SENTENCE_RE = re.compile(r'Segment.*?score:\s+(.*?)\n')
 
 
@@ -248,9 +254,12 @@ def evaluate_system(model, subsets=None, references_list=None, methods=None):
             if (subset, str(references), method) not in calculated_evals:
 
                 eval_function = SYSTEM_EVALUATION_METHODS[method]
-                metrics_values = eval_function(model, subset, references)
+                try:
+                    metrics_values = eval_function(model, subset, references)
 
-                all_results.extend(metrics_values)
+                    all_results.extend(metrics_values)
+                except FileNotFoundError:
+                    pass
 
     already_created = os.path.isfile(system_eval_filepath)
 

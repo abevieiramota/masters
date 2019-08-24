@@ -10,8 +10,7 @@ RE_FIND_THIAGO_SLOT = re.compile('((?:AGENT-.)|(?:PATIENT-.)|(?:BRIDGE-.))')
 RE_MATCH_TEMPLATE_KEYS = re.compile(r'(AGENT\\-\d|PATIENT\\-\d|BRIDGE\\-\d)')
 TRANS_ESCAPE_TO_RE = str.maketrans('-', '_', '\\')
 
-RE_ENTITY_SPACE_DOTCOMMA = re.compile(r'(?:(?<=AGENT-\d)|(?<=PATIENT-\d)|'
-                                      r'(?<=BRIDGE-\d))\ (?=[\.,])')
+RE_SPACE_BEFORE_COMMA_DOT = re.compile(r'(?<=\b)\s(?=\.|,)')
 
 RE_WEIRD_QUOTE_MARKS = re.compile(r'(`{1,2})|(\'{1,2})')
 
@@ -28,7 +27,7 @@ class StructureDoesntMatchTemplate(Exception):
 def normalize_thiagos_template(s):
     # removes single space between an entity and a dot or a comma
 
-    s = RE_ENTITY_SPACE_DOTCOMMA.sub('', s)
+    s = RE_SPACE_BEFORE_COMMA_DOT.sub('', s)
 
     return RE_WEIRD_QUOTE_MARKS.sub('"', s)
 

@@ -17,26 +17,27 @@ class LessPartsBiggerFirst:
 
 class SentenceAggregation:
 
-    def __init__(self, feature_all_extractors):
+    def __init__(self, feature_all_extractors=None, sort=None):
+
+        if not feature_all_extractors:
+            feature_all_extractors = []
 
         self.feature_all_extractors = feature_all_extractors
+        self.sort = sort if sort else lambda x: list(x)
 
     def agg(self, plans):
 
-        all_partitions = partitions(plans)
+        all_partitions = self.sort(partitions(plans))
+
         aggs = [{'agg': agg} for agg in all_partitions]
 
-        if self.feature_all_extractors:
+        for fae in self.feature_all_extractors:
 
-            all_partitions = list(all_partitions)
+            features = fae.extract_all(all_partitions)
 
-            for fae in self.feature_all_extractors:
+            for a, f in zip(aggs, features):
 
-                features = fae.extract_all(all_partitions)
-
-                for a, f in zip(aggs, features):
-
-                    a.update(f)
+                a.update(f)
 
         for agg in aggs:
 

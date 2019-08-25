@@ -6,6 +6,7 @@ from operator import mul
 from functools import reduce
 import pickle
 from nltk import everygrams
+import numpy as np
 
 
 with open('../data/templates/template_db/triple_to_lex_1', 'rb') as f:
@@ -24,15 +25,21 @@ def super_sim(agg_part, t):
         lexes = triple_to_lex_gt1[agg_part[0]]
 
         if len(lexes) == 0:
-            return 0
+            return 0, 0
 
         lexes_ngrams = [set(everygrams(lexe.split(), 2, 3)) for lexe in lexes]
 
-        return sum(len(t_grams.intersection(lexe_ngrams))/len(t_grams)
-                   for lexe_ngrams in lexes_ngrams) / len(lexes)
+        precisions = [len(t_grams.intersection(lexe_ngrams))/len(t_grams)
+                      for lexe_ngrams in lexes_ngrams]
+
+        max_precision = max(precisions)
+        n_max_precision = len([p for p in precisions if p == max_precision])
+
+        return max_precision, n_max_precision
     else:
 
         total = 0
+        n_max_precisions = []
 
         for a in agg_part:
 
@@ -44,12 +51,16 @@ def super_sim(agg_part, t):
 
             lexes_ngrams = [set(everygrams(lexe.split(), 2, 3)) for lexe in lexes]
 
-            part = sum(len(t_grams.intersection(lexe_ngrams))/len(t_grams)
-                   for lexe_ngrams in lexes_ngrams) / len(lexes)
+            precisions = [len(t_grams.intersection(lexe_ngrams))/len(lexe_ngrams)
+                          for lexe_ngrams in lexes_ngrams]
 
-            total += part
+            max_precision = max(precisions)
+            n_max_precision = len([p for p in precisions if p == max_precision])
 
-        return total / len(agg_part)
+            total += max_precision
+            n_max_precisions.append(n_max_precision)
+
+        return total / len(agg_part), np.median(n_max_precisions)
 
 
 class TemplateSelection:
@@ -84,8 +95,10 @@ class TemplateSelection:
                 for t in ts:
 
                     tt = dict(t)
-                    tt['feature_template_len_1_freq'] = super_sim(agg_part,
-                                                                  t['template'].template_text)
+                    precision, n_max = super_sim(agg_part,
+                                                 t['template'].template_text)
+                    tt['feature_template_len_1_freq'] = precision
+                    tt['feature_template_n_max_precision'] = n_max
 
                     tems.append((agg_part, tt, False))
 
@@ -98,7 +111,8 @@ class TemplateSelection:
                             'feature_template_freq_in_category': 0,
                             'feature_template_category': None,
                             'feature_template_n_dots': 1,
-                            'feature_template_len_1_freq': 0
+                            'feature_template_len_1_freq': 0,
+                            'feature_template_n_max_precision': 0
                             }
 
                     templates.append([([triple], data, True)])
@@ -108,7 +122,7 @@ class TemplateSelection:
             result = {}
             result['agg'] = [i[0] for i in item]
             result['templates'] = [i[1]['template'] for i in item]
-            result['feature_template_n_fallback'] = sum((i[2] for i in item))
+            result['feature_template_n_fallback'] = sum((i[2] for i in item)) / len(e.triples)
             result['feature_template_template_freqs'] = reduce(
                     mul,
                     (i[1]['feature_template_freq_in_category'] for i in item))
@@ -120,6 +134,7 @@ class TemplateSelection:
                 sum(i[1]['feature_template_n_dots'] for i in item)
 
             result['feature_template_len_1_freq'] = sum(i[1]['feature_template_len_1_freq'] for i in item) / len(item)
+            result['feature_template_n_max_precision'] = sum(i[1]['feature_template_n_max_precision'] for i in item) / len(item)
 
             yield result
 

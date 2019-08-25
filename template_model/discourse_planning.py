@@ -78,3 +78,12 @@ class DiscoursePlanning:
                 plan_f.update(fe.extract(plan))
 
             yield plan_f
+
+
+class SameOrderDiscoursePlanning:
+
+    def plan(self, e):
+
+        yield {'plan': e.triples,
+               'feature_plan_is_first': True,
+               'feature_plan_naive_discourse_prob': 1.0}

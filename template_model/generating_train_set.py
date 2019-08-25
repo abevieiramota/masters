@@ -5,7 +5,6 @@ from collections import Counter, defaultdict
 from reading_thiagos_templates import make_template, get_lexicalizations
 import pickle
 import os
-import spacy
 from util import preprocess_so, Entry
 from discourse_planning import DiscoursePlanning, NaiveDiscoursePlanFeature
 from sentence_aggregation import SentenceAggregation, LessPartsBiggerFirst
@@ -15,9 +14,9 @@ from itertools import islice
 import re
 from more_itertools import flatten
 from teste3 import get_np
-
-
-nlp = spacy.load('en_core_web_lg')
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.linear_model import LinearRegression
+import numpy as np
 
 
 def preprocess_data(data, outdir='.'):
@@ -88,6 +87,10 @@ def preprocess_data(data, outdir='.'):
 
     # reg
 
+    import spacy
+
+    nlp = spacy.load('en_core_web_lg')
+
     name_db = defaultdict(lambda: Counter())
     pronoun_db = defaultdict(lambda: Counter())
 
@@ -131,10 +134,10 @@ with open('../evaluation/train.pkl', 'rb') as f:
 
 template_db = pd.read_pickle('./template_db')
 
-np = NaiveDiscoursePlanFeature()
-np.fit(template_db['template_triples'],
+ndp = NaiveDiscoursePlanFeature()
+ndp.fit(template_db['template_triples'],
        template_db['feature_template_cnt_in_category'])
-dp = DiscoursePlanning([np])
+dp = DiscoursePlanning([ndp])
 lpbpf = LessPartsBiggerFirst()
 sa = SentenceAggregation([lpbpf])
 ts = TemplateSelection(template_db, JustJoinTemplate())
@@ -253,13 +256,19 @@ def get_sentence_bleu_scored(e, n1, n2, ranking):
 
         hyp['feature_entry_n_triples'] = len(e.triples)
         hyp['feature_entry_category'] = e.category
-        hyp['feature_language_model_score'] = npp.extract(hyp['text'])
+        hyp['feature_language_model_score'] = npp.extract(hyp['text']) / len(hyp['text'].split())
 
     first_hyp = hypothesis[0]
-    best_bleu = max(hypothesis, key=lambda h: h['bleu'])['bleu']
+    best_bleu = max(hyp['bleu'] for hyp in hypothesis)
+    w_best_bleu = [hyp for hyp in hypothesis if hyp['bleu'] == best_bleu]
 
-    first_hyp['feature_rank_is_first_ranked'] = True
-    first_hyp['feature_rank_is_first_correct'] = first_hyp['bleu'] == best_bleu
+    first_hyp['best_bleu'] = first_hyp in w_best_bleu
+
+    bleus = [h['bleu'] for h in hypothesis]
+    scaled_bleus = MinMaxScaler().fit_transform(np.array(bleus).reshape(-1, 1))
+
+    for hyp, scaled_bleu in zip(hypothesis, scaled_bleus[:, 0]):
+        hyp['scaled_bleu'] = scaled_bleu
 
     return hypothesis
 
@@ -308,4 +317,28 @@ def cool_ranking(t):
 
 #df = get_data(train, 100, 10, cool_ranking)
 
-#df.to_csv('./train_data.csv')
+#df.to_csv('./train_data.csv', index=False)
+
+df = pd.read_csv('./train_data.csv')
+
+feature_cols = ['feature_plan_is_first',  # categorical
+                'feature_plan_naive_discourse_prob',
+                'feature_template_len_1_freq',
+                'feature_template_n_fallback',
+                'feature_template_pct_same_category',
+                'feature_template_template_freqs'
+                ]
+
+X = df[feature_cols]
+
+y = df['scaled_bleu']
+
+from sklearn.model_selection import cross_val_score
+
+lr = LinearRegression()
+
+scores = cross_val_score(LinearRegression(), X, y, cv=3, scoring='neg_mean_squared_error')
+
+print(scores)
+
+lr.fit(X, y)

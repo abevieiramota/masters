@@ -18,49 +18,66 @@ with open('../data/templates/template_db/triple_to_lex_gt1', 'rb') as f:
 
 def super_sim(agg_part, t):
 
-    t_grams = set(everygrams(t.split(), 2, 3))
+    t_grams = set(everygrams(t.split(), 2, 4))
 
     if len(agg_part) == 1:
 
         lexes = triple_to_lex_gt1[agg_part[0]]
 
         if len(lexes) == 0:
-            return 0, 0
+            return (0, 1), 0
 
-        lexes_ngrams = [set(everygrams(lexe.split(), 2, 3)) for lexe in lexes]
+        lexes_ngrams = [set(everygrams(lexe.split(), 2, 4)) for lexe in lexes]
 
-        precisions = [len(t_grams.intersection(lexe_ngrams))/len(t_grams)
-                      for lexe_ngrams in lexes_ngrams]
+        intersections = [len(t_grams.intersection(lexe_ngrams))
+                         for lexe_ngrams in lexes_ngrams]
 
-        max_precision = max(precisions)
-        n_max_precision = len([p for p in precisions if p == max_precision])
+        max_intersection = max(intersections)
+        n_max_intersections = len([p for p in intersections if p == max_intersection])
 
-        return max_precision, n_max_precision
+        return (max_intersection, len(t_grams)), n_max_intersections
     else:
 
-        total = 0
+        each_intersections = []
         n_max_precisions = []
+        each_sizes = []
 
         for a in agg_part:
 
             lexes = triple_to_lex_1[a]
 
             if len(lexes) == 0:
-                total *= 0.001
+                each_intersections.append(0)
+                each_sizes.append(0)
                 continue
 
-            lexes_ngrams = [set(everygrams(lexe.split(), 2, 3)) for lexe in lexes]
+            lexes_ngrams = [set(everygrams(lexe.split(), 2, 4)) for lexe in lexes]
 
-            precisions = [len(t_grams.intersection(lexe_ngrams))/len(lexe_ngrams)
-                          for lexe_ngrams in lexes_ngrams]
+            intersections = [len(t_grams.intersection(lexe_ngrams))
+                             for lexe_ngrams in lexes_ngrams]
 
-            max_precision = max(precisions)
+            sizes = [len(lexe_ngrams) for lexe_ngrams in lexes_ngrams]
+
+            precisions = [i/s for i, s in zip(intersections, sizes)]
+
+            i_max_precision = max(range(len(intersections)),
+                                  key=lambda i: intersections[i]/sizes[i])
+
+            max_precision = precisions[i_max_precision]
             n_max_precision = len([p for p in precisions if p == max_precision])
 
-            total += max_precision
+            each_intersections.append(intersections[i_max_precision])
+            each_sizes.append(intersections[i_max_precision])
+
             n_max_precisions.append(n_max_precision)
 
-        return total / len(agg_part), np.median(n_max_precisions)
+        sum_intersections = sum(each_intersections)
+        sum_sizes = sum(each_sizes)
+
+        if sum_sizes == 0:
+            return (0, 1), 0
+
+        return (sum_intersections, sum_sizes), np.median(n_max_precisions)
 
 
 class TemplateSelection:
@@ -95,27 +112,36 @@ class TemplateSelection:
                 for t in ts:
 
                     tt = dict(t)
-                    precision, n_max = super_sim(agg_part,
-                                                 t['template'].template_text)
-                    tt['feature_template_len_1_freq'] = precision
+                    (intersection, size), n_max = super_sim(agg_part,
+                                                            t['template'].template_text)
+                    tt['feature_template_intersection'] = intersection
+                    tt['feature_template_size'] = size
                     tt['feature_template_n_max_precision'] = n_max
 
                     tems.append((agg_part, tt, False))
 
+
                 templates.append(tems)
             else:
 
-                for triple in agg_part:
+                if len(abstracted_triples) == 1:
+
+                    triple = agg_part[0]
 
                     data = {'template': self.fallback,
                             'feature_template_freq_in_category': 0,
                             'feature_template_category': None,
                             'feature_template_n_dots': 1,
                             'feature_template_len_1_freq': 0,
-                            'feature_template_n_max_precision': 0
+                            'feature_template_n_max_precision': 0,
+                            'feature_template_intersection': 0,
+                            'feature_template_size': 1
                             }
 
                     templates.append([([triple], data, True)])
+                else: # no template for the agg w len > 1
+                    return
+
 
         for item in product(*templates):
 
@@ -133,7 +159,7 @@ class TemplateSelection:
             result['feature_template_total_dots'] = \
                 sum(i[1]['feature_template_n_dots'] for i in item)
 
-            result['feature_template_len_1_freq'] = sum(i[1]['feature_template_len_1_freq'] for i in item) / len(item)
+            result['feature_template_len_1_freq'] = sum(i[1]['feature_template_intersection'] for i in item) / sum(i[1]['feature_template_size'] for i in item)
             result['feature_template_n_max_precision'] = sum(i[1]['feature_template_n_max_precision'] for i in item) / len(item)
 
             yield result

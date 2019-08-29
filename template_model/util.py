@@ -128,19 +128,17 @@ def clear_dir(dirpath):
         os.remove(f)
 
 
-def read_train_dev():
+def load_test():
 
-    filepaths = glob.glob('../data/templates/v1.4/train/**/*.xml',
-                          recursive=True)
-    filepaths.extend(glob.glob('../data/templates/v1.4/dev/**/*.xml',
-                               recursive=True))
+    with open('../evaluation/test.pkl', 'rb') as f:
+        test = pickle.load(f)
 
-    train_dev_entries = []
+    return test
 
-    for filepath in filepaths:
 
-        entries = read_thiagos_xml_entries(filepath)
+def load_train_dev():
 
-        train_dev_entries.extend(entries)
+    with open('../evaluation/train_dev.pkl', 'rb') as f:
+        td = pickle.load(f)
 
-    return train_dev_entries
+    return td

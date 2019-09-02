@@ -50,7 +50,10 @@ def delexicalize_triples(triples, r_entity_map):
 def make_template(triples, template_text, r_entity_map, metadata):
 
     slots = RE_FIND_THIAGO_SLOT.findall(template_text)
-    positions = {k: i for i, k in enumerate(slots)}
+    positions = {}
+    for i, k in enumerate(slots):
+        if k not in positions:
+            positions[k] = i
     # vai pra última posição as triplas que não aparecem no texto
     positions = defaultdict(lambda: 10000, positions)
 
@@ -149,7 +152,7 @@ def extract_triples(entry_elem):
 
         triples.append(triple)
 
-    return triples
+    return tuple(triples)
 
 
 def extract_entity_map(entry_elem):
@@ -180,7 +183,7 @@ def extract_lexes(entry_elem):
 
         lexes.append(lex)
 
-    return lexes
+    return tuple(lexes)
 
 
 def read_thiagos_xml_entries(filepath):

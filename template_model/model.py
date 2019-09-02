@@ -7,6 +7,8 @@ from template_based2 import JustJoinTemplate
 import pandas as pd
 import pickle
 from reg import REGer
+from collections import defaultdict
+from random import shuffle
 
 
 class TextGenerationModel:
@@ -93,22 +95,123 @@ class TextGenerationModel:
                 f.write('{}\n'.format(t))
 
 
-def get_model():
+def get_model(dps):
 
     # Discourse Planning
     template_db = pd.read_pickle('../data/templates/template_db/template_db')
 
+    # triples_to_templates
+    triples_to_templates = defaultdict(list)
+
+    for v in template_db.to_dict(orient='record'):
+
+        triples_to_templates[v['template_triples']].append(v)
+
+    triples_to_templates = dict(triples_to_templates)
+
     np = NaiveDiscoursePlanFeature()
     np.fit(template_db['template_triples'],
            template_db['feature_template_cnt_in_category'])
-    dp = DiscoursePlanning([np])
+    dp = DiscoursePlanning(0.2, [np], sort=dps)
 
     # Sentence Aggregation
     lpbpf = LessPartsBiggerFirst()
-    sa = SentenceAggregation([lpbpf])
+    sa = SentenceAggregation(triples_to_templates, [lpbpf])
 
     # Template Selection
-    ts = TemplateSelection(template_db, JustJoinTemplate())
+    ts = TemplateSelection(triples_to_templates, JustJoinTemplate())
+
+    # REG
+    with open('../data/templates/lexicalization/thiago_name_db', 'rb') as f:
+        name_db = pickle.load(f)
+
+    with open('../data/templates/lexicalization/thiago_pronoun_db', 'rb') as f:
+        pronoun_db = pickle.load(f)
+
+    refer = REGer(pronoun_db, name_db).refer
+
+    model = TextGenerationModel(dp, sa, ts, refer)
+
+    return model
+
+
+def get_naive_model():
+
+    # Discourse Planning
+    template_db = pd.read_pickle('../data/templates/template_db/template_db')
+
+    # triples_to_templates
+    triples_to_templates = defaultdict(list)
+
+    for v in template_db.to_dict(orient='record'):
+
+        triples_to_templates[v['template_triples']].append(v)
+
+    triples_to_templates = dict(triples_to_templates)
+
+    np = NaiveDiscoursePlanFeature()
+    np.fit(template_db['template_triples'],
+           template_db['feature_template_cnt_in_category'])
+
+    def sort(orders, e):
+
+        return np.sort(orders)
+
+    dp = DiscoursePlanning(0.2, [np], sort=sort)
+
+    # Sentence Aggregation
+    lpbpf = LessPartsBiggerFirst()
+    sa = SentenceAggregation(triples_to_templates, [lpbpf])
+
+    # Template Selection
+    ts = TemplateSelection(triples_to_templates, JustJoinTemplate())
+
+    # REG
+    with open('../data/templates/lexicalization/thiago_name_db', 'rb') as f:
+        name_db = pickle.load(f)
+
+    with open('../data/templates/lexicalization/thiago_pronoun_db', 'rb') as f:
+        pronoun_db = pickle.load(f)
+
+    refer = REGer(pronoun_db, name_db).refer
+
+    model = TextGenerationModel(dp, sa, ts, refer)
+
+    return model
+
+
+def get_random_order_model():
+
+    # Discourse Planning
+    template_db = pd.read_pickle('../data/templates/template_db/template_db')
+
+    # triples_to_templates
+    triples_to_templates = defaultdict(list)
+
+    for v in template_db.to_dict(orient='record'):
+
+        triples_to_templates[v['template_triples']].append(v)
+
+    triples_to_templates = dict(triples_to_templates)
+
+    def random_order(orders, e):
+
+        orders_ = list(orders)[::]
+        shuffle(orders_)
+
+        return orders_
+
+    np = NaiveDiscoursePlanFeature()
+    np.fit(template_db['template_triples'],
+           template_db['feature_template_cnt_in_category'])
+    dp = DiscoursePlanning(0.2, [np], sort=random_order)
+
+    # Sentence Aggregation
+    lpbpf = LessPartsBiggerFirst()
+    sa = SentenceAggregation(triples_to_templates, [lpbpf])
+
+    # Template Selection
+    ts = TemplateSelection(triples_to_templates, JustJoinTemplate())
 
     # REG
     with open('../data/templates/lexicalization/thiago_name_db', 'rb') as f:

@@ -82,16 +82,10 @@ def super_sim(agg_part, t):
 
 class TemplateSelection:
 
-    def __init__(self, template_db, fallback=None, ranker=None):
+    def __init__(self, triples_to_templates, fallback=None, ranker=None):
 
         self.fallback = fallback
-        triples_to_templates = defaultdict(list)
-
-        for v in template_db.to_dict(orient='record'):
-
-            triples_to_templates[v['template_triples']].append(v)
-
-        self.triples_to_templates = dict(triples_to_templates)
+        self.triples_to_templates = triples_to_templates
         self.ranker = ranker if ranker else lambda x: list(x)
 
     def select(self, agg, e):

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from discourse_planning import DiscoursePlanning, NaiveDiscoursePlanFeature, make_data, get_pipeline, get_sorter
+from discourse_planning import DiscoursePlanning, NaiveDiscoursePlanFeature, get_pipeline, get_sorter
 from sentence_aggregation import SentenceAggregation, LessPartsBiggerFirst
 from template_selection import TemplateSelection
 from template_based2 import JustJoinTemplate
@@ -9,7 +9,10 @@ from reg import REGer
 from collections import defaultdict
 from random import shuffle
 from model import TextGenerationModel
-from util import load_train_dev, load_test
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.linear_model import Lasso
+import numpy as np
 
 
 template_db = pd.read_pickle('../data/templates/template_db/template_db')
@@ -22,8 +25,8 @@ for v in template_db.to_dict(orient='record'):
 
 triples_to_templates = dict(triples_to_templates)
 
-np = NaiveDiscoursePlanFeature()
-np.fit(template_db['template_triples'],
+ndp = NaiveDiscoursePlanFeature()
+ndp.fit(template_db['template_triples'],
        template_db['feature_template_cnt_in_category'])
 
 with open('../data/templates/lexicalization/thiago_name_db', 'rb') as f:
@@ -33,23 +36,9 @@ with open('../data/templates/lexicalization/thiago_pronoun_db', 'rb') as f:
     pronoun_db = pickle.load(f)
 
 
-td = load_train_dev()
-test = load_test()
-
-
-def make_main_model_data():
-
-    td_to_train_discourse_plan_ranker = [t for t in td if len(t.triples) > 1 and t.r_entity_map]
-
-    X, y = make_data(td_to_train_discourse_plan_ranker)
-
-    with open('../data/templates/discourse_plan_data', 'wb') as f:
-        pickle.dump({'X': X, 'y': y}, f)
-
-
 def get_model(pct, sorter):
 
-    dp = DiscoursePlanning(pct, [np], sort=sorter)
+    dp = DiscoursePlanning(pct, [ndp], sort=sorter)
 
     # Sentence Aggregation
     lpbpf = LessPartsBiggerFirst()
@@ -79,19 +68,29 @@ def get_random_model(pct):
     return get_model(pct, random_order)
 
 
-
 def get_main_model(pct):
 
-    with open('../data/templates/discourse_plan_data', 'rb') as f:
-        data = pickle.load(f)
+    models = {}
 
-    X = data['X']
-    y = data['y']
+    with open('../data/templates/discourse_plan_data_extractors', 'rb') as f:
+        fe = pickle.load(f)
 
-    pipe = get_pipeline()
+    for i in range(2, 8):
 
-    pipe.fit(X, y)
+        data = np.load(f'../data/templates/discourse_plan_data_{i}.npy')
 
-    sorter = get_sorter(pipe)
+        X = data[:, :-1]
+        y = data[:, -1]
+
+        pipe = Pipeline([
+            ('mms',  MinMaxScaler()),
+            ('clf', Lasso(alpha=0.0001))
+        ])
+
+        pipe.fit(X, y)
+
+        models[i] = pipe
+
+    sorter = get_sorter(models, fe)
 
     return get_model(pct, sorter)

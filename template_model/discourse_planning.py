@@ -117,39 +117,16 @@ def extract_orders(e):
             if k not in positions:
                 positions[k] = i
         positions = defaultdict(lambda: 10000, positions)
-        sorted_triples = tuple(sorted(e.triples, key=lambda t: positions[e.r_entity_map[t.object]]))
+        sorted_triples = tuple(sorted(e.triples,
+                                      key=lambda t:
+                                          positions[e.r_entity_map[t.object]]))
 
         orders[sorted_triples] += 1
 
     return orders
 
 
-def make_data(entries):
-
-    data_train = set()
-
-    entries, _ = train_test_split(entries, train_size=0.2, stratify=[len(e.triples) for e in entries])
-
-    for e_ix, e in enumerate(entries):
-
-        good_orders = extract_orders(e)
-        all_orders = permutations(e.triples)
-
-        for o in all_orders:
-
-            kendall = calc_kendall(o, good_orders)
-
-            data = (o, e_ix, kendall)
-
-            data_train.add(data)
-
-    X = [(o, entries[e_ix], e_ix) for o, e_ix, _ in data_train]
-    y = [kendall for o, e_ix, kendall in data_train]
-
-    return X, y
-
-
-def frac_siblings(o):
+def frac_siblings_subjects(o):
 
     i = 0
     current_s = None
@@ -162,13 +139,42 @@ def frac_siblings(o):
     subs = Counter(o_.subject for o_ in o)
     max_siblings = sum(v - 1 for v in subs.values())
 
-    if max_siblings == 0:
-        return 1.0
-
-    return i / max_siblings
+    return (i + 1) / (max_siblings + len(o))
 
 
-def frac_connections(o):
+def frac_siblings_objects(o):
+
+    i = 0
+    current_o = None
+    for o_ in o:
+        if o_.object == current_o:
+            i += 1
+        else:
+            current_o = o_.object
+
+    obs = Counter(o_.object for o_ in o)
+    max_siblings = sum(v - 1 for v in obs.values())
+
+    return (i + 1) / (max_siblings + len(o))
+
+
+def frac_siblings_predicates(o):
+
+    i = 0
+    current_p = None
+    for o_ in o:
+        if o_.predicate == current_p:
+            i += 1
+        else:
+            current_p = o_.predicate
+
+    preds = Counter(o_.predicate for o_ in o)
+    max_siblings = sum(v - 1 for v in preds.values())
+
+    return (i + 1) / (max_siblings + len(o))
+
+
+def frac_chains(o):
 
     n = 0
     for t, t_1 in zip(o[:-1], o[1:]):
@@ -179,10 +185,8 @@ def frac_connections(o):
     objs = set(t.object for t in o)
 
     len_intersect = len(subs.intersection(objs))
-    if len_intersect:
-        return n / len_intersect
-    else:
-        return 1
+
+    return (n + 1) / (len_intersect + len(o))
 
 
 def is_first_the_main(o):
@@ -199,59 +203,55 @@ class ExtractFeatures(TransformerMixin):
 
     def fit(self, X, y=None):
 
-        self.freq_in_position = defaultdict(lambda: Counter())
         self.freq_all = Counter()
         self.freq_bigrams = Counter()
         self.freq_unigrams = Counter()
+        self.size_training = Counter()
 
-        entries = []
-        seen = set()
-        for o, e, e_ix in X:
-            if e_ix not in seen and len(e.triples) > 1:
-                entries.append(e)
-                seen.add(e_ix)
+        good_orders = [x for i, x in enumerate(X) if y[i] == 1.0]
 
-        for e in entries:
-            for pos, t in enumerate(e.triples):
-                self.freq_in_position[pos][t.predicate] += 1
+        for o in good_orders:
+            for pos, t in enumerate(o):
                 self.freq_unigrams[t.predicate] += 1
 
-            for o in extract_orders(e):
+            a_o = abstract_triples(o)
 
-                a_o = abstract_triples(o)
+            self.freq_all[a_o] += 1
 
-                self.freq_all[a_o] += 1
-
-            for t1, t2 in zip(e.triples[:-1], e.triples[1:]):
+            for t1, t2 in zip(o[:-1], o[1:]):
                 self.freq_bigrams[(t1.predicate, t2.predicate)] += 1
+
+            self.size_training[len(o)] += 1
+
+        self.feature_names_ = ['freq_all',
+                               'frac_chains',
+                               'is_first_the_main',
+                               'frac_siblings_subjects',
+                               'frac_siblings_objects',
+                               'frac_siblings_predicates',
+                               'naive_prob_predicates']
 
         return self
 
     def transform(self, X, y=None):
 
-        return [self.extract_features(o, e) for (o, e, e_ix) in X]
+        return [self.extract_features(o) for o in X]
 
-    def extract_features(self, order, e):
+    def extract_features(self, order):
 
         a_o = abstract_triples(order)
-
-        freq_in_pos = {f'freq_in_pos_{i}': self.freq_in_position[i][order[i].predicate]
-                       for i in range(len(order))}
-        total_freq = max(sum(freq_in_pos.values()), 1)
-        freq_in_pos = {k: v / total_freq for k, v in freq_in_pos.items()}
 
         naive_prob_predicates = reduce(lambda x, y: x*y,
                                        [(self.freq_bigrams[(t1.predicate, t2.predicate)] + 1) / (self.freq_unigrams[t1.predicate] + len(order))
                                         for t1, t2 in zip(order[:-1], order[1:])])
 
-        features = {'freq_all': self.freq_all[a_o],
-                    'kendall_from_original': kendalltau(e.triples, order).correlation,
-                    'frac_connections': frac_connections(order),
-                    'is_first_the_main': is_first_the_main(order),
-                    'frac_siblings': frac_siblings(order),
-                    'naive_prob_predicates': naive_prob_predicates
-                   }
-        features.update(freq_in_pos)
+        features = [self.freq_all[a_o] / self.size_training[len(order)],
+                    frac_chains(order),
+                    is_first_the_main(order),
+                    frac_siblings_subjects(order),
+                    frac_siblings_objects(order),
+                    frac_siblings_predicates(order),
+                    naive_prob_predicates]
 
         return features
 
@@ -265,32 +265,31 @@ from sklearn.preprocessing import MinMaxScaler
 
 
 def get_pipeline():
-    data_pipeline = Pipeline([
-        ('extract', ExtractFeatures()),
-        ('vectorizer', DictVectorizer(sparse=False, sort=False)),
-        ('mms', MinMaxScaler())
-    ])
 
     pipeline = Pipeline([
-        ('data', data_pipeline),
+        ('mms',  MinMaxScaler()),
         ('clf', Lasso(alpha=0.0001))
     ])
 
     return pipeline
 
 
-def get_sorter(model):
+def get_sorter(models, fe):
 
     def sort(orders, e):
 
-        if len(e.triples) == 1:
+        len_triples = len(e.triples)
+
+        if len_triples == 1:
             return orders
 
-        data = [(o, e, 0) for o in orders]
+        orders = list(orders)
 
-        scores = model.predict(data)
+        data = fe[len_triples].transform(orders)
 
-        return [data[i][0] for i, s in sorted(enumerate(scores),
+        scores = models[len_triples].predict(data)
+
+        return [orders[i] for i, s in sorted(enumerate(scores),
                                              key=lambda x: x[1],
                                              reverse=True)]
 
@@ -322,13 +321,15 @@ class DiscoursePlanningSorter:
 
     def sort(self, orders, e):
 
-        if len(e.triples) == 1:
+        n_triples = len(orders)
+
+        if n_triples == 1:
             return orders
 
-        if (e.category, e.triples) not in self.sorters:
+        if n_triples not in self.sorters:
             return orders
 
-        return self.sorters[(e.category, len(e.triples))](orders, e)
+        return self.sorters[n_triples](orders, e)
 
 
 

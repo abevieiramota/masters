@@ -54,9 +54,9 @@ def make_test_pkl():
 
 def make_train_dev_pkl():
 
-    filepaths = glob.glob('../data/templates/v1.4/train/**/*.xml',
+    filepaths = glob.glob('../data/templates/v2.0/en/train/**/*.xml',
                           recursive=True)
-    filepaths.extend(glob.glob('../data/templates/v1.4/dev/**/*.xml',
+    filepaths.extend(glob.glob('../data/templates/en/v2.0/dev/**/*.xml',
                                recursive=True))
 
     entries = []
@@ -88,7 +88,7 @@ def make_train_dev_pkl():
 
 def make_train_pkl():
 
-    filepaths = glob.glob('../data/templates/v1.4/train/**/*.xml',
+    filepaths = glob.glob('../data/templates/v2.0/en/train/**/*.xml',
                           recursive=True)
 
     entries = []

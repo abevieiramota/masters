@@ -174,11 +174,33 @@ def extract_lexes(entry_elem):
 
     for lex_elem in entry_elem.findall('lex'):
 
+        sorted_sent_triples = None
+        sorted_tripleset_elem = lex_elem.find('sortedtripleset')
+
+        if sorted_tripleset_elem:
+
+            sorted_sent_triples = []
+
+            for sorted_sent_elem in sorted_tripleset_elem.findall('sentence'):
+
+                sorted_triples = []
+
+                for t in sorted_sent_elem.findall('striple'):
+                    sub, pred, obj = [x.strip(' "') for x in t.text.split('|')]
+
+                    triple = Triple(sub, pred, obj)
+
+                    sorted_triples.append(triple)
+
+                if sorted_triples:
+                    sorted_sent_triples.append(sorted_triples)
+
         lex = {'text': lex_elem.findtext('text'),
                'template': normalize_thiagos_template(lex_elem
                                                       .findtext('template',
                                                                 '')),
-               'comment': lex_elem.attrib['comment']
+               'comment': lex_elem.attrib['comment'],
+               'sorted_triples': sorted_sent_triples
                }
 
         lexes.append(lex)

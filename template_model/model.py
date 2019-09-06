@@ -88,11 +88,14 @@ class TextGenerationModel:
 
         with open(outfilepath, 'w', encoding='utf-8') as f:
 
-            for e in X:
+            for i, e in enumerate(X):
 
                 t = self.get_best_text(e, n, ranking)
 
                 f.write('{}\n'.format(t))
+
+                if i % 100 == 0:
+                    print(i)
 
 
 def get_model(dps):

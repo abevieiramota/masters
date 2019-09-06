@@ -3,6 +3,7 @@ import re
 import xml.etree.ElementTree as ET
 from reading_thiagos_templates import (
         extract_triples,
+        extract_triples_BUG_test,
         extract_lexes,
         read_thiagos_xml_entries,
         extract_entity_map)
@@ -35,6 +36,38 @@ def preprocess_so(so):
 
 def make_test_pkl():
 
+    filepaths = glob.glob('../data/templates/v2.0/en/test/**/*.xml',
+                          recursive=True)
+
+    entries = []
+
+    for fp in filepaths:
+
+        tree = ET.parse(fp)
+        root = tree.getroot()
+
+        for entry_elem in root.iter('entry'):
+
+            eid = entry_elem.attrib['eid']
+            category = entry_elem.attrib['category']
+            triples = extract_triples_BUG_test(entry_elem)
+            lexes = extract_lexes(entry_elem)
+            entity_map = extract_entity_map(entry_elem)
+            r_entity_map = {v: k for k, v in entity_map.items()}
+
+            entries.append(Entry(eid,
+                                 category,
+                                 triples,
+                                 lexes,
+                                 entity_map,
+                                 r_entity_map))
+
+    with open('../evaluation/test.pkl', 'wb') as f:
+        pickle.dump(entries, f)
+
+
+def make_shared_task_test_pkl():
+
     entries = []
 
     tree = ET.parse('../evaluation/testdata_with_lex.xml')
@@ -48,7 +81,7 @@ def make_test_pkl():
 
         entries.append(Entry(eid, category, triples, None, None, None))
 
-    with open('../evaluation/test.pkl', 'wb') as f:
+    with open('../evaluation/test_shared_task.pkl', 'wb') as f:
         pickle.dump(entries, f)
 
 
@@ -131,6 +164,14 @@ def clear_dir(dirpath):
 def load_test():
 
     with open('../evaluation/test.pkl', 'rb') as f:
+        test = pickle.load(f)
+
+    return test
+
+
+def load_shared_task_test():
+
+    with open('../evaluation/test_shared_task.pkl', 'rb') as f:
         test = pickle.load(f)
 
     return test

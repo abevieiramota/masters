@@ -3,7 +3,6 @@ from util import load_train_dev, Entry
 import pickle
 from scipy.stats import kendalltau
 from collections import defaultdict
-from reading_thiagos_templates import RE_FIND_THIAGO_SLOT
 from itertools import permutations
 import discourse_planning
 import numpy as np
@@ -17,27 +16,6 @@ def calc_kendall(o1, good_os):
     max_kendall = max(all_kendall)
 
     return max_kendall
-
-
-def extract_orders_old(e):
-
-    orders = set()
-
-    for lexe in e.lexes:
-
-        slots = RE_FIND_THIAGO_SLOT.findall(lexe['template'])
-        positions = {}
-        for i, k in enumerate(slots):
-            if k not in positions:
-                positions[k] = i
-        positions = defaultdict(lambda: 10000, positions)
-        sorted_triples = tuple(sorted(e.triples,
-                                      key=lambda t:
-                                          positions[e.r_entity_map[t.object]]))
-
-        orders.add(sorted_triples)
-
-    return list(orders)
 
 
 def extract_orders(e):

@@ -155,6 +155,27 @@ def extract_triples(entry_elem):
     return tuple(triples)
 
 
+# criado por haver um bug na v2.0/test em que a estrutura está
+#    modifiedtripleset > otriple
+#    no lugar de
+#    modifiedtripleset > mtriple
+def extract_triples_BUG_test(entry_elem):
+
+    triples = []
+
+    modifiedtripleset_elem = entry_elem.find('modifiedtripleset')
+
+    for t in modifiedtripleset_elem.findall('otriple'):
+
+        sub, pred, obj = [x.strip(' "') for x in t.text.split('|')]
+
+        triple = Triple(sub, pred, obj)
+
+        triples.append(triple)
+
+    return tuple(triples)
+
+
 def extract_entity_map(entry_elem):
 
     entity_dict = {}

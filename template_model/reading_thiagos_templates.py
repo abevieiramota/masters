@@ -1,8 +1,6 @@
-import xml.etree.ElementTree as ET
 import re
-from template_based2 import Template, Triple
+from template_based import Template, Triple, abstract_triples
 from collections import defaultdict, Counter
-from template_based2 import abstract_triples
 
 
 RE_FIND_THIAGO_SLOT = re.compile('((?:AGENT-.)|(?:PATIENT-.)|(?:BRIDGE-.))')
@@ -16,12 +14,6 @@ RE_WEIRD_QUOTE_MARKS = re.compile(r'(`{1,2})|(\'{1,2})')
 
 # {{}} -> é só para escapar as chaves
 SLOT_PLACEHOLDER = '{{{}}}'
-
-
-class StructureDoesntMatchTemplate(Exception):
-
-    def __init__(self, *args, **kwargs):
-        Exception.__init__(self, *args, **kwargs)
 
 
 def normalize_thiagos_template(s):
@@ -47,18 +39,7 @@ def delexicalize_triples(triples, r_entity_map):
     return delexicalized_triples
 
 
-def make_template(triples, template_text, r_entity_map, metadata):
-
-    slots = RE_FIND_THIAGO_SLOT.findall(template_text)
-    positions = {}
-    for i, k in enumerate(slots):
-        if k not in positions:
-            positions[k] = i
-    # vai pra última posição as triplas que não aparecem no texto
-    positions = defaultdict(lambda: 10000, positions)
-
-    sorted_triples = sorted(triples,
-                            key=lambda t: positions[r_entity_map[t.object]])
+def make_template(sorted_triples, template_text, r_entity_map):
 
     delexicalized_triples = delexicalize_triples(sorted_triples, r_entity_map)
     abstracted_triples = abstract_triples(sorted_triples)
@@ -77,7 +58,7 @@ def make_template(triples, template_text, r_entity_map, metadata):
 
     # removes @ -> looks like an error
     template_text = template_text.replace('@', '')
-    t = Template(abstracted_triples, template_text, metadata)
+    t = Template(abstracted_triples, template_text)
 
     return t
 
@@ -155,27 +136,6 @@ def extract_triples(entry_elem):
     return tuple(triples)
 
 
-# criado por haver um bug na v2.0/test em que a estrutura está
-#    modifiedtripleset > otriple
-#    no lugar de
-#    modifiedtripleset > mtriple
-def extract_triples_BUG_test(entry_elem):
-
-    triples = []
-
-    modifiedtripleset_elem = entry_elem.find('modifiedtripleset')
-
-    for t in modifiedtripleset_elem.findall('otriple'):
-
-        sub, pred, obj = [x.strip(' "') for x in t.text.split('|')]
-
-        triple = Triple(sub, pred, obj)
-
-        triples.append(triple)
-
-    return tuple(triples)
-
-
 def extract_entity_map(entry_elem):
 
     entity_dict = {}
@@ -227,26 +187,3 @@ def extract_lexes(entry_elem):
         lexes.append(lex)
 
     return tuple(lexes)
-
-
-def read_thiagos_xml_entries(filepath):
-
-    entries = []
-
-    tree = ET.parse(filepath)
-    root = tree.getroot()
-
-    for entry_elem in root.iter('entry'):
-
-        entry = {}
-        entry['eid'] = entry_elem.attrib['eid']
-        entry['category'] = entry_elem.attrib['category']
-        entry['triples'] = extract_triples(entry_elem)
-        entry['lexes'] = extract_lexes(entry_elem)
-        entry['entity_map'] = extract_entity_map(entry_elem)
-        # reversed entity map
-        entry['r_entity_map'] = {v: k for k, v in entry['entity_map'].items()}
-
-        entries.append(entry)
-
-    return entries

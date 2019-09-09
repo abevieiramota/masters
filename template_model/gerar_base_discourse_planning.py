@@ -20,15 +20,18 @@ def calc_kendall(o1, good_os):
 
 def extract_orders(e):
 
-    orders = set()
+    orders = list()
 
-    for l in [l for l in e.lexes if l['comment'] == 'good']:
+    for l in [l for l in e.lexes if l['comment'] == 'good'
+              and l['sorted_triples']]:
 
         order = tuple(flatten(l['sorted_triples']))
         if len(order) == len(e.triples):
-            orders.add(order)
+            orders.append(order)
+        else:
+            orders.append(None)
 
-    return list(orders)
+    return orders
 
 
 def make_data(entries):
@@ -37,7 +40,7 @@ def make_data(entries):
 
     for e in entries:
 
-        good_orders = extract_orders(e)
+        good_orders = [o for o in extract_orders(e) if o]
 
         if good_orders:
             all_orders = permutations(e.triples)

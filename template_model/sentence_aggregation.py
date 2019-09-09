@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from more_itertools import partitions
-from template_based2 import abstract_triples
+from template_based import abstract_triples
 
 
 class LessPartsBiggerFirst:
@@ -16,10 +16,14 @@ class LessPartsBiggerFirst:
                 for i in rank]
 
 
-# don't generate an aggregation if there is any part w len > 1 that doesn't have a template
+# don't generate an aggregation if there is any part w len > 1
+#    that doesn't have a template
 class SentenceAggregation:
 
-    def __init__(self, triples_to_templates, feature_all_extractors=None, sort=None):
+    def __init__(self,
+                 triples_to_templates,
+                 feature_all_extractors=None,
+                 sort=None):
 
         if not feature_all_extractors:
             feature_all_extractors = []

@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 from collections import Counter, defaultdict
 from itertools import permutations
-from reading_thiagos_templates import RE_FIND_THIAGO_SLOT
 from math import ceil
+from sklearn.base import TransformerMixin
+from template_based import abstract_triples
+from functools import reduce
 
 
 class NaiveDiscoursePlanFeature:
@@ -65,7 +67,7 @@ class DiscoursePlanning:
 
         self.feature_extractors = feature_extractors
         self.sort = sort if sort else lambda x, y: list(x)
-        self.pct=pct
+        self.pct = pct
 
     def plan(self, e):
 
@@ -85,45 +87,7 @@ class DiscoursePlanning:
             yield plan_f
 
 
-from sklearn.feature_extraction import DictVectorizer
-from sklearn.pipeline import Pipeline
-from sklearn.base import TransformerMixin
-from itertools import product, combinations
-from template_based2 import abstract_triples
-from functools import reduce
-from scipy.stats import kendalltau
-from operator import itemgetter
-from sklearn.model_selection import train_test_split
-
-
-def calc_kendall(o1, good_os):
-
-    all_kendall = [kendalltau(o, o1).correlation for o in good_os]
-
-    max_kendall = max(all_kendall)
-
-    return max_kendall
-
-
-def extract_orders(e):
-
-    orders = Counter()
-
-    for lexe in e.lexes:
-
-        slots = RE_FIND_THIAGO_SLOT.findall(lexe['template'])
-        positions = {}
-        for i, k in enumerate(slots):
-            if k not in positions:
-                positions[k] = i
-        positions = defaultdict(lambda: 10000, positions)
-        sorted_triples = tuple(sorted(e.triples,
-                                      key=lambda t:
-                                          positions[e.r_entity_map[t.object]]))
-
-        orders[sorted_triples] += 1
-
-    return orders
+# features
 
 
 def frac_siblings_subjects(o):
@@ -256,24 +220,6 @@ class ExtractFeatures(TransformerMixin):
         return features
 
 
-from sklearn.linear_model import Lasso, Ridge
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.svm import SVR
-from sklearn.dummy import DummyRegressor
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import MinMaxScaler
-
-
-def get_pipeline():
-
-    pipeline = Pipeline([
-        ('mms',  MinMaxScaler()),
-        ('clf', Lasso(alpha=0.0001))
-    ])
-
-    return pipeline
-
-
 def get_sorter(models, fe):
 
     def sort(orders, e):
@@ -294,42 +240,3 @@ def get_sorter(models, fe):
                                              reverse=True)]
 
     return sort
-
-
-class DiscoursePlanningSorter:
-
-    def fit(self, entries):
-
-        self.n_triples = set(len(e.triples) for e in entries) - {1}
-        self.models = {}
-        self.sorters = {}
-
-        for n_triple in self.ntriples:
-
-            selected_entries = [e for e in entries if len(e.triples) == n_triple]
-
-            X, y = make_data(selected_entries)
-
-            model = get_pipeline()
-
-            model.fit(X, y)
-
-            self.models[n_triple] = model
-            self.sorters[n_triple] = get_sorter(model)
-
-            print(f'Trained ({n_triple})')
-
-    def sort(self, orders, e):
-
-        n_triples = len(orders)
-
-        if n_triples == 1:
-            return orders
-
-        if n_triples not in self.sorters:
-            return orders
-
-        return self.sorters[n_triples](orders, e)
-
-
-

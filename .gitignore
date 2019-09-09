@@ -126,4 +126,7 @@ dmypy.json
 *.ter
 tools/
 bkp/
-v1.4/
+40tena/
+kenlm/
+*.npy
+*.csv

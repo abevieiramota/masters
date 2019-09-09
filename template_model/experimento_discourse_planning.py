@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
-from discourse_planning import DiscoursePlanning, NaiveDiscoursePlanFeature, get_pipeline, get_sorter
+from discourse_planning import (
+        DiscoursePlanning,
+        NaiveDiscoursePlanFeature,
+        get_sorter
+        )
 from sentence_aggregation import SentenceAggregation, LessPartsBiggerFirst
 from template_selection import TemplateSelection
-from template_based2 import JustJoinTemplate
+from template_based import JustJoinTemplate
 import pandas as pd
 import pickle
-from reg import REGer
+from reg import REGer, load_name_db, load_pronoun_db
 from collections import defaultdict
 from random import shuffle
 from model import TextGenerationModel
@@ -27,13 +31,10 @@ triples_to_templates = dict(triples_to_templates)
 
 ndp = NaiveDiscoursePlanFeature()
 ndp.fit(template_db['template_triples'],
-       template_db['feature_template_cnt_in_category'])
+        template_db['feature_template_cnt_in_category'])
 
-with open('../data/templates/lexicalization/thiago_name_db', 'rb') as f:
-    name_db = pickle.load(f)
-
-with open('../data/templates/lexicalization/thiago_pronoun_db', 'rb') as f:
-    pronoun_db = pickle.load(f)
+pronoun_db = load_pronoun_db()
+name_db = load_name_db()
 
 
 def get_model(pct, sorter):
@@ -94,3 +95,15 @@ def get_main_model(pct):
     sorter = get_sorter(models, fe)
 
     return get_model(pct, sorter)
+
+
+def cool_ranking(t):
+
+    return (t['feature_template_n_fallback'] == 0,
+            t['feature_template_pct_same_category'],
+            t['feature_agg_less_parts_bigger_first']*-1,
+            t['feature_template_len_1_freq'],
+            t['feature_template_n_max_precision'],
+            t['feature_template_template_freqs'],
+            t['feature_plan_naive_discourse_prob'],
+            t['feature_template_template_freqs'])

@@ -3,13 +3,15 @@ import re
 import xml.etree.ElementTree as ET
 from reading_thiagos_templates import (
         extract_triples,
-        extract_triples_BUG_test,
         extract_lexes,
-        read_thiagos_xml_entries,
         extract_entity_map)
 from collections import namedtuple
 import glob
 import pickle
+import os
+
+
+V_15_BASEPATH = '../../webnlg/data/v1.5/en/'
 
 
 PARENTHESIS_RE = re.compile(r'(.*?)\((.*?)\)')
@@ -36,7 +38,7 @@ def preprocess_so(so):
 
 def make_test_pkl():
 
-    filepaths = glob.glob('../data/templates/v2.0/en/test/**/*.xml',
+    filepaths = glob.glob(os.path.join(V_15_BASEPATH, 'test/**/*.xml'),
                           recursive=True)
 
     entries = []
@@ -50,7 +52,7 @@ def make_test_pkl():
 
             eid = entry_elem.attrib['eid']
             category = entry_elem.attrib['category']
-            triples = extract_triples_BUG_test(entry_elem)
+            triples = extract_triples(entry_elem)
             lexes = extract_lexes(entry_elem)
             entity_map = extract_entity_map(entry_elem)
             r_entity_map = {v: k for k, v in entity_map.items()}
@@ -87,9 +89,9 @@ def make_shared_task_test_pkl():
 
 def make_train_dev_pkl():
 
-    filepaths = glob.glob('../data/templates/v2.0/en/train/**/*.xml',
+    filepaths = glob.glob(os.path.join(V_15_BASEPATH, 'train/**/*.xml'),
                           recursive=True)
-    filepaths.extend(glob.glob('../data/templates/en/v2.0/dev/**/*.xml',
+    filepaths.extend(glob.glob(os.path.join(V_15_BASEPATH, 'dev/**/*.xml'),
                                recursive=True))
 
     entries = []
@@ -121,7 +123,7 @@ def make_train_dev_pkl():
 
 def make_train_pkl():
 
-    filepaths = glob.glob('../data/templates/v2.0/en/train/**/*.xml',
+    filepaths = glob.glob(os.path.join(V_15_BASEPATH, 'train/**/*.xml'),
                           recursive=True)
 
     entries = []

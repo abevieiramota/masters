@@ -2,6 +2,7 @@
 from discourse_planning import (
         DiscoursePlanning,
         NaiveDiscoursePlanFeature,
+        GoldDiscoursePlanning,
         get_sorter
         )
 from sentence_aggregation import SentenceAggregation, LessPartsBiggerFirst
@@ -37,13 +38,11 @@ pronoun_db = load_pronoun_db()
 name_db = load_name_db()
 
 
-def get_model(pct, sorter):
-
-    dp = DiscoursePlanning(pct, [ndp], sort=sorter)
+def get_model(dp, pct_sa):
 
     # Sentence Aggregation
     lpbpf = LessPartsBiggerFirst()
-    sa = SentenceAggregation(triples_to_templates, [lpbpf])
+    sa = SentenceAggregation(pct_sa, triples_to_templates, [lpbpf])
 
     # Template Selection
     ts = TemplateSelection(triples_to_templates, JustJoinTemplate())
@@ -56,7 +55,7 @@ def get_model(pct, sorter):
     return model
 
 
-def get_random_model(pct):
+def get_random_model(pct_dp, pct_sa):
     # Discourse Planning
 
     def random_order(orders, e):
@@ -66,10 +65,12 @@ def get_random_model(pct):
 
         return orders_
 
-    return get_model(pct, random_order)
+    dp = DiscoursePlanning(pct_dp, [ndp], sort=random_order)
+
+    return get_model(dp, pct_sa)
 
 
-def get_main_model(pct):
+def get_main_model(pct_dp, pct_sa):
 
     models = {}
 
@@ -94,7 +95,16 @@ def get_main_model(pct):
 
     sorter = get_sorter(models, fe)
 
-    return get_model(pct, sorter)
+    dp = DiscoursePlanning(pct_dp, [ndp], sort=sorter)
+
+    return get_model(dp, pct_sa)
+
+
+def get_gold_model(entries, pct_sa):
+
+    dp = GoldDiscoursePlanning(entries, [ndp])
+
+    return get_model(dp, pct_sa)
 
 
 def cool_ranking(t):

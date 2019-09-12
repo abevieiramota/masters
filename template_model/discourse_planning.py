@@ -5,6 +5,7 @@ from math import ceil
 from sklearn.base import TransformerMixin
 from template_based import abstract_triples
 from functools import reduce
+from util import extract_orders
 
 
 class NaiveDiscoursePlanFeature:
@@ -75,10 +76,53 @@ class DiscoursePlanning:
 
         n_max = ceil(self.pct * len(plans))
 
-        for i, plan in zip(range(n_max), plans):
+        for i, plan in enumerate(plans[:n_max]):
 
             plan_f = {'plan': plan,
                       'feature_plan_is_first': i == 0}
+
+            for fe in self.feature_extractors:
+
+                plan_f.update(fe.extract(plan))
+
+            yield plan_f
+
+
+class GoldDiscoursePlanning:
+
+    def __init__(self, entries, feature_extractors=None):
+
+        if not feature_extractors:
+            feature_extractors = []
+
+        self.feature_extractors = feature_extractors
+
+        self.entries_db = {}
+
+        for e in entries:
+
+            key = GoldDiscoursePlanning._entry_key(e)
+
+            self.entries_db[key] = {o for o in extract_orders(e) if o}
+
+    @staticmethod
+    def _entry_key(e):
+
+        return (e.category, len(e.triples), e.eid)
+
+    def plan(self, e):
+
+        key = GoldDiscoursePlanning._entry_key(e)
+
+        plans = self.entries_db[key]
+
+        if not plans:
+            plans = [e.triples]
+
+        for plan in plans:
+
+            plan_f = {'plan': plan,
+                      'feature_plan_is_first': int(plan == e.triples)}
 
             for fe in self.feature_extractors:
 
@@ -163,7 +207,7 @@ def is_first_the_main(o):
     return o[0].subject in s_not_o
 
 
-class ExtractFeatures(TransformerMixin):
+class DiscoursePlanningFeatures(TransformerMixin):
 
     def fit(self, X, y=None):
 

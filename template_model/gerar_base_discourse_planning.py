@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-from util import load_train_dev, Entry
+from util import load_train_dev, Entry, extract_orders
 import pickle
 from scipy.stats import kendalltau
 from collections import defaultdict
 from itertools import permutations
 import discourse_planning
 import numpy as np
-from more_itertools import flatten
 
 
 def calc_kendall(o1, good_os):
@@ -16,22 +15,6 @@ def calc_kendall(o1, good_os):
     max_kendall = max(all_kendall)
 
     return max_kendall
-
-
-def extract_orders(e):
-
-    orders = list()
-
-    for l in [l for l in e.lexes if l['comment'] == 'good'
-              and l['sorted_triples']]:
-
-        order = tuple(flatten(l['sorted_triples']))
-        if len(order) == len(e.triples):
-            orders.append(order)
-        else:
-            orders.append(None)
-
-    return orders
 
 
 def make_data(entries):
@@ -72,7 +55,7 @@ def make_main_model_data(td, outpath):
         X_raw = [x[0] for x in v]
         y = [x[1] for x in v]
 
-        ef = discourse_planning.ExtractFeatures().fit(X_raw, y)
+        ef = discourse_planning.DiscoursePlanningFeatures().fit(X_raw, y)
 
         X = ef.transform(X_raw)
 

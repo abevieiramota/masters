@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from more_itertools import partitions
 from template_based import abstract_triples
+from math import ceil
 
 
 class LessPartsBiggerFirst:
@@ -21,6 +22,7 @@ class LessPartsBiggerFirst:
 class SentenceAggregation:
 
     def __init__(self,
+                 pct,
                  triples_to_templates,
                  feature_all_extractors=None,
                  sort=None):
@@ -31,11 +33,14 @@ class SentenceAggregation:
         self.triples_to_templates = triples_to_templates
         self.feature_all_extractors = feature_all_extractors
         self.sort = sort if sort else lambda x: list(x)
+        self.pct = pct
 
-    def agg(self, plans):
+    def agg(self, plan):
 
-        all_partitions = self.sort(partitions(plans))
+        all_partitions = self.sort(partitions(plan))
         all_partitions_w_templates = []
+
+        n_max = ceil(self.pct * len(all_partitions))
 
         for partition in all_partitions:
 
@@ -52,6 +57,8 @@ class SentenceAggregation:
 
             if all_part_has_template:
                 all_partitions_w_templates.append(partition)
+
+        all_partitions_w_templates = all_partitions_w_templates[:n_max]
 
         aggs = [{'agg': agg} for agg in all_partitions_w_templates]
 

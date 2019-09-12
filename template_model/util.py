@@ -9,6 +9,8 @@ from collections import namedtuple
 import glob
 import pickle
 import os
+from more_itertools import flatten
+from template_based import Triple
 
 
 V_15_BASEPATH = '../../webnlg/data/v1.5/en/'
@@ -185,3 +187,20 @@ def load_train_dev():
         td = pickle.load(f)
 
     return td
+
+
+def extract_orders(e):
+
+    orders = []
+
+    for l in [l for l in e.lexes if l['comment'] == 'good'
+              and l['sorted_triples']]:
+
+        order = tuple(flatten(l['sorted_triples']))
+        if len(order) == len(e.triples):
+            orders.append(order)
+        else:
+            orders.append(None)
+
+    return orders
+

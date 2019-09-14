@@ -10,7 +10,6 @@ import glob
 import pickle
 import os
 from more_itertools import flatten
-from template_based import Triple
 
 
 V_15_BASEPATH = '../../webnlg/data/v1.5/en/'

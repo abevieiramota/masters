@@ -174,7 +174,7 @@ def extract_lexes(entry_elem):
                     sorted_triples.append(triple)
 
                 if sorted_triples:
-                    sorted_sent_triples.append(sorted_triples)
+                    sorted_sent_triples.append(tuple(sorted_triples))
 
         lex = {'text': lex_elem.findtext('text'),
                'template': normalize_thiagos_template(lex_elem

@@ -266,21 +266,19 @@ class DiscoursePlanningFeatures(TransformerMixin):
 
 def get_sorter(models, fe):
 
-    def sort(orders, e):
+    def sort(os, n_triples):
 
-        len_triples = len(e.triples)
+        if n_triples == 1:
+            return os
 
-        if len_triples == 1:
-            return orders
+        os = os[::]
 
-        orders = list(orders)
+        data = fe[n_triples].transform(os)
 
-        data = fe[len_triples].transform(orders)
+        scores = models[n_triples].predict(data)
 
-        scores = models[len_triples].predict(data)
-
-        return [orders[i] for i, s in sorted(enumerate(scores),
-                                             key=lambda x: x[1],
-                                             reverse=True)]
+        return [os[i] for i, s in sorted(enumerate(scores),
+                                         key=lambda x: x[1],
+                                         reverse=True)]
 
     return sort

@@ -24,7 +24,6 @@ class Module:
         self.sorter = sorter
         self.n_max = n_max
         self.next_module = next_module
-        self.n_tries = []
         self.consumed = None
 
     def generate(self, flow_chain):
@@ -36,24 +35,17 @@ class Module:
             return sorted_outputs[:self.n_max]
 
         self.consumed = []
-        total_tries = 0
         results = []
 
-        while len(self.consumed) < self.n_max and sorted_outputs:
-
-            curr_o = sorted_outputs.pop(0)
+        for curr_o in sorted_outputs[:self.n_max]:
 
             curr_flow_chain = flow_chain + [curr_o]
 
             result = self.next_module.generate(curr_flow_chain)
 
-            total_tries += 1
-
             if result:
-                #self.consumed.append(curr_o)
+                self.consumed.append(curr_o)
                 results.extend(result)
-
-        self.n_tries.append(total_tries)
 
         return results
 
@@ -95,7 +87,7 @@ class MultiModule:
             result = self.next_module.generate(curr_flow_chain)
 
             if result:
-                #self.consumed.append(curr_o)
+                self.consumed.append(curr_o)
                 results.extend(result)
 
         return results

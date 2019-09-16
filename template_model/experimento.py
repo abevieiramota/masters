@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from itertools import permutations, product
-from more_itertools import partitions
+from more_itertools import partitions, flatten
 from random import Random
 import pickle
 from template_based import JustJoinTemplate, abstract_triples
@@ -89,17 +89,26 @@ def make_pipe(use_lm):
 
         return ts_result
 
-    ts_n_max = 3
+    ts_n_max = 5
     ts = MultiModule(ts_gen, ts_sorter, ts_n_max, tg)
+
+    def sort_one_sentence_per_triple_first(os, flow_chain):
+
+        os_rest = [o for o in os if any(len(agg_part) > 1 for agg_part in os)]
+        os_ospt = [[t] for t in flatten(os[0])]
+
+        sorted_rest = random_sorter(os_rest, flow_chain)
+
+        return [os_ospt] + sorted_rest
 
     sa_gen = lambda flow_chain: list(partitions(flow_chain[-1]))
     sa_sorter = get_sa_sorter()
-    sa_n_max = 1
+    sa_n_max = 3
     sa = Module(sa_gen, sa_sorter, sa_n_max, ts)
 
     dp_gen = lambda flow_chain: list(permutations(flow_chain[-1].triples))
     dp_sorter = get_dp_sorter()
-    dp_n_max = 1
+    dp_n_max = 3
     dp = Module(dp_gen, dp_sorter, dp_n_max, sa)
 
     pipe_selector = lambda x: max(x, key=lm)
@@ -143,9 +152,9 @@ if __name__ == '__main__':
 
     test = load_shared_task_test()
 
-    pipe = make_pipe(False)
-    pipe.run(test[941])
+    pipe = make_pipe(True)
+    #pipe.run(test[226])
 
-    #score = do_all(test, 'abe-random')
+    score = do_all(test, 'abe-random')
 
-    #print(score)
+    print(score)

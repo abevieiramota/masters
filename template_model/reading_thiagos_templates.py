@@ -1,6 +1,7 @@
 import re
 from template_based import Template, Triple, abstract_triples
 from collections import defaultdict, Counter
+from nltk import sent_tokenize
 
 
 RE_FIND_THIAGO_SLOT = re.compile('((?:AGENT-.)|(?:PATIENT-.)|(?:BRIDGE-.))')
@@ -41,26 +42,40 @@ def delexicalize_triples(triples, r_entity_map):
 
 def make_template(sorted_triples, template_text, r_entity_map):
 
-    delexicalized_triples = delexicalize_triples(sorted_triples, r_entity_map)
-    abstracted_triples = abstract_triples(sorted_triples)
+    templates = []
 
-    for abstracted_t, delexicalized_t in zip(abstracted_triples,
-                                             delexicalized_triples):
+    template_sens = sent_tokenize(template_text)
 
-        template_text = template_text.replace(delexicalized_t.subject,
-                                              SLOT_PLACEHOLDER.format(
-                                                      abstracted_t.subject)
-                                              )
-        template_text = template_text.replace(delexicalized_t.object,
-                                              SLOT_PLACEHOLDER.format(
-                                                      abstracted_t.object)
-                                              )
+    for template_sen, triples_sen in zip(template_sens, sorted_triples):
 
-    # removes @ -> looks like an error
-    template_text = template_text.replace('@', '')
-    t = Template(abstracted_triples, template_text)
+        delexicalized_triples = delexicalize_triples(triples_sen, r_entity_map)
+        abstracted_triples = abstract_triples(triples_sen)
 
-    return t
+        for abstracted_t, delexicalized_t in zip(abstracted_triples,
+                                                 delexicalized_triples):
+
+            template_sen = template_sen.replace(delexicalized_t.subject,
+                                                SLOT_PLACEHOLDER.format(
+                                                        abstracted_t.subject)
+                                                )
+            template_sen = template_sen.replace(delexicalized_t.object,
+                                                SLOT_PLACEHOLDER.format(
+                                                        abstracted_t.object)
+                                                )
+
+        slots = {t.subject
+                 for t in abstracted_triples} | {t.object
+                                                 for t in abstracted_triples}
+        all_slots_in_sen = all(slot in template_sen for slot in slots)
+
+        if all_slots_in_sen:
+            # removes @ -> looks like an error
+            template_sen = template_sen.replace('@', '')
+            t = Template(abstracted_triples, template_sen)
+
+            templates.append(t)
+
+    return templates
 
 
 def get_lexicalizations(s, t, entity_map):

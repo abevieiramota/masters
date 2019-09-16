@@ -266,7 +266,9 @@ class DiscoursePlanningFeatures(TransformerMixin):
 
 def get_sorter(models, fe):
 
-    def sort(os, n_triples):
+    def sort(os, flow_chain):
+
+        n_triples = len(flow_chain[0].triples)
 
         if n_triples == 1:
             return os

@@ -6,9 +6,10 @@ import pickle
 from template_based import JustJoinTemplate, abstract_triples
 from reg import REGer, load_name_db, load_pronoun_db
 from arquitetura import Module, OverPipeline, MultiModule
-from experimento_discourse_planning import get_dp_sorter
-from experimento_sentence_aggregation import get_sa_sorter
+from experimento_discourse_planning import get_dp_scorer
+from experimento_sentence_aggregation import get_sa_scorer
 from util import Entry
+from functools import partial
 import sys
 import os
 sys.path.append('../evaluation')
@@ -19,23 +20,26 @@ from evaluate import preprocess_model_to_evaluate, bleu
 
 def make_pipe(use_lm):
 
+    def random_scorer(x, flow_chain, random_seed=None):
+
+        ixs = list(range(len(x)))
+        Random(random_seed).shuffle(ixs)
+
+        return ixs
+
     if use_lm:
 
         import kenlm
 
-        lm = kenlm.Model('../data/kenlm/lm.arpa').score
-        ts_lm = kenlm.Model('../data/kenlm/ts_lm.arpa').score
+        lm = partial(kenlm.Model('../data/kenlm/lm.arpa').score,
+                     bos=False,
+                     eos=False)
+        ts_lm = partial(kenlm.Model('../data/kenlm/ts_lm.arpa').score,
+                        bos=False,
+                        eos=False)
     else:
-        lm = lambda x: Random().choice(x)
-        ts_lm = lambda x: Random().choice(x)
-
-    def random_sorter(x, flow_chain, random_seed=None):
-
-        x_copy = x[::]
-
-        Random(random_seed).shuffle(x_copy)
-
-        return x_copy
+        lm = lambda x: Random().randint(0, 1000)
+        ts_lm = lambda x: Random().randint(0, 1000)
 
     pronoun_db = load_pronoun_db()
     name_db = load_name_db()
@@ -52,9 +56,9 @@ def make_pipe(use_lm):
 
         return [' '.join(texts)]
 
-    tg_sorter = lambda x, flow_chain: x
-    tg_n_max = 2
-    tg = Module('TG', tg_gen, tg_sorter, tg_n_max, None)
+    tg_scorer = lambda x, flow_chain: [-1]
+    tg_n_max = 1
+    tg = Module('TG', tg_gen, tg_scorer, tg_n_max, None)
 
     with open('../data/templates/template_db/tdb', 'rb') as f:
         template_db = pickle.load(f)
@@ -77,39 +81,27 @@ def make_pipe(use_lm):
         else:
             return []
 
-    def ts_sorter(ts, flow_chain):
+    def ts_scorer(ts, flow_chain):
 
         agg_part = flow_chain[-1]
 
-        ts_result = sorted(ts,
-                           key=lambda t: ts_lm(t.fill(agg_part,
-                                                      lambda so, ctx: so,
-                                                      None)),
-                           reverse=True)
+        ts_result = [ts_lm(t.fill(agg_part, lambda so, ctx: so, None))
+                     for t in ts]
 
         return ts_result
 
-    ts_n_max = 3
-    ts = MultiModule('TS', ts_gen, ts_sorter, ts_n_max, tg)
-
-    def sort_one_sentence_per_triple_first(os, flow_chain):
-
-        os_rest = [o for o in os if any(len(agg_part) > 1 for agg_part in os)]
-        os_ospt = [[t] for t in flatten(os[0])]
-
-        sorted_rest = random_sorter(os_rest, flow_chain)
-
-        return [os_ospt] + sorted_rest
+    ts_n_max = 5
+    ts = MultiModule('TS', ts_gen, ts_scorer, ts_n_max, tg)
 
     sa_gen = lambda flow_chain: list(partitions(flow_chain[-1]))
-    sa_sorter = get_sa_sorter()
-    sa_n_max = 2
-    sa = Module('SA', sa_gen, sa_sorter, sa_n_max, ts)
+    sa_scorer = get_sa_scorer()
+    sa_n_max = 3
+    sa = Module('SA', sa_gen, sa_scorer, sa_n_max, ts)
 
     dp_gen = lambda flow_chain: list(permutations(flow_chain[-1].triples))
-    dp_sorter = get_dp_sorter()
+    dp_scorer= get_dp_scorer()
     dp_n_max = 2
-    dp = Module('DP', dp_gen, dp_sorter, dp_n_max, sa)
+    dp = Module('DP', dp_gen, dp_scorer, dp_n_max, sa)
 
     pipe_selector = lambda x: max(x, key=lm)
 
@@ -124,7 +116,7 @@ def make_texts(pipe, entries, outpath):
 
     with open(outpath, 'w', encoding='utf-8') as f:
         for i, e in enumerate(entries):
-            text = pipe.run(e)
+            text, _ = pipe.run(e)
             f.write(f'{text}\n')
             if i % 10 == 0:
                 print(i)
@@ -153,8 +145,8 @@ if __name__ == '__main__':
     test = load_shared_task_test()
 
     pipe = make_pipe(True)
-    #pipe.run(test[226])
+    #pipe.run(test[210])
 
-    #score = do_all(test, 'abe-random')
+    score = do_all(test, 'abe-random')
 
-    #print(score)
+    print(score)

@@ -264,14 +264,14 @@ class DiscoursePlanningFeatures(TransformerMixin):
         return features
 
 
-def get_sorter(models, fe):
+def get_scorer(models, fe):
 
-    def sort(os, flow_chain):
+    def scorer(os, flow_chain):
 
         n_triples = len(flow_chain[0].triples)
 
         if n_triples == 1:
-            return os
+            return [-1]
 
         os = os[::]
 
@@ -279,8 +279,6 @@ def get_sorter(models, fe):
 
         scores = models[n_triples].predict(data)
 
-        return [os[i] for i, s in sorted(enumerate(scores),
-                                         key=lambda x: x[1],
-                                         reverse=True)]
+        return scores
 
-    return sort
+    return scorer

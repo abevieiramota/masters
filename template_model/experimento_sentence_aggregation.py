@@ -4,11 +4,11 @@ import numpy as np
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.linear_model import Lasso
-from discourse_planning import get_sorter
+from discourse_planning import get_scorer
 from more_itertools import flatten
 
 
-def get_sa_sorter():
+def get_sa_scorer():
 
     models = {}
 
@@ -31,15 +31,15 @@ def get_sa_sorter():
 
         models[i] = pipe
 
-    sorter = get_sorter(models, fe)
+    scorer = get_scorer(models, fe)
 
-    def sort_one_sentence_per_triple_first(os, flow_chain):
+    def score_one_sentence_per_triple_best(os, flow_chain):
 
-        os_rest = [o for o in os if any(len(agg_part) > 1 for agg_part in os)]
-        os_ospt = [[t] for t in flatten(os[0])]
+        ix_one_sen_per_triple = [i for i in range(len(os)) if len(os[i]) == len(flow_chain[0].triples)][0]
+        scores = scorer(os, flow_chain)
 
-        sorted_rest = sorter(os_rest, flow_chain)
+        scores[ix_one_sen_per_triple] = max(scores) + 1
 
-        return [os_ospt] + sorted_rest
+        return scores
 
-    return sort_one_sentence_per_triple_first
+    return score_one_sentence_per_triple_best

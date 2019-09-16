@@ -2,12 +2,12 @@
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.linear_model import Lasso
 from sklearn.pipeline import Pipeline
-from discourse_planning import get_sorter
+from discourse_planning import get_scorer
 import numpy as np
 import pickle
 
 
-def get_dp_sorter():
+def get_dp_scorer():
 
     models = {}
 
@@ -30,9 +30,9 @@ def get_dp_sorter():
 
         models[i] = pipe
 
-    sorter = get_sorter(models, fe)
+    scorer = get_scorer(models, fe)
 
-    return sorter
+    return scorer
 
 
 def cool_ranking(t):

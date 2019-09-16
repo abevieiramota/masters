@@ -11,63 +11,64 @@ class OverPipeline:
 
     def run(self, i):
 
-        outputs = self.initial_module.generate([i])
+        outputs, decisions = self.initial_module.generate([i])
 
-        return self.selector(outputs)
+        return self.selector(outputs), decisions
 
 
 class Module:
 
-    def __init__(self, generator, sorter, n_max, next_module=None):
+    def __init__(self, name, generator, sorter, n_max, next_module=None):
 
         self.generator = generator
         self.sorter = sorter
         self.n_max = n_max
         self.next_module = next_module
-        self.consumed = None
+        self.name = name
 
     def generate(self, flow_chain):
+
+        decisions = []
 
         sorted_outputs = self.sorter(self.generator(flow_chain), flow_chain)
 
         if not self.next_module:
 
-            return sorted_outputs[:self.n_max]
+            return sorted_outputs[:self.n_max], (self.name, sorted_outputs[:self.n_max])
 
-        self.consumed = []
         results = []
 
         for curr_o in sorted_outputs[:self.n_max]:
 
             curr_flow_chain = flow_chain + [curr_o]
 
-            result = self.next_module.generate(curr_flow_chain)
+            result, next_decisions = self.next_module.generate(curr_flow_chain)
+
+            decisions.append((self.name, curr_o, next_decisions))
 
             if result:
-                self.consumed.append(curr_o)
                 results.extend(result)
 
-        return results
+        return results, decisions
 
 
 class MultiModule:
 
-    def __init__(self, generator, sorter, n_max, next_module=None):
+    def __init__(self, name, generator, sorter, n_max, next_module=None):
 
         self.generator = generator
         self.sorter = sorter
         self.n_max = n_max
         self.next_module = next_module
-        self.n_tries = []
-        self.consumed = None
+        self.name = name
 
     def generate(self, flow_chain):
-
-        self.consumed = []
 
         i = flow_chain[-1]
 
         all_partial_results = []
+
+        decisions = []
 
         for i_part in i:
 
@@ -84,10 +85,11 @@ class MultiModule:
 
             curr_flow_chain = flow_chain + [curr_o]
 
-            result = self.next_module.generate(curr_flow_chain)
+            result, next_decisions = self.next_module.generate(curr_flow_chain)
+
+            decisions.append((self.name, curr_o, next_decisions))
 
             if result:
-                self.consumed.append(curr_o)
                 results.extend(result)
 
-        return results
+        return results, decisions

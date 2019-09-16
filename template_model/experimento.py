@@ -54,7 +54,7 @@ def make_pipe(use_lm):
 
     tg_sorter = lambda x, flow_chain: x
     tg_n_max = 2
-    tg = Module(tg_gen, tg_sorter, tg_n_max, None)
+    tg = Module('TG', tg_gen, tg_sorter, tg_n_max, None)
 
     with open('../data/templates/template_db/tdb', 'rb') as f:
         template_db = pickle.load(f)
@@ -89,8 +89,8 @@ def make_pipe(use_lm):
 
         return ts_result
 
-    ts_n_max = 5
-    ts = MultiModule(ts_gen, ts_sorter, ts_n_max, tg)
+    ts_n_max = 3
+    ts = MultiModule('TS', ts_gen, ts_sorter, ts_n_max, tg)
 
     def sort_one_sentence_per_triple_first(os, flow_chain):
 
@@ -103,13 +103,13 @@ def make_pipe(use_lm):
 
     sa_gen = lambda flow_chain: list(partitions(flow_chain[-1]))
     sa_sorter = get_sa_sorter()
-    sa_n_max = 3
-    sa = Module(sa_gen, sa_sorter, sa_n_max, ts)
+    sa_n_max = 2
+    sa = Module('SA', sa_gen, sa_sorter, sa_n_max, ts)
 
     dp_gen = lambda flow_chain: list(permutations(flow_chain[-1].triples))
     dp_sorter = get_dp_sorter()
-    dp_n_max = 3
-    dp = Module(dp_gen, dp_sorter, dp_n_max, sa)
+    dp_n_max = 2
+    dp = Module('DP', dp_gen, dp_sorter, dp_n_max, sa)
 
     pipe_selector = lambda x: max(x, key=lm)
 
@@ -155,6 +155,6 @@ if __name__ == '__main__':
     pipe = make_pipe(True)
     #pipe.run(test[226])
 
-    score = do_all(test, 'abe-random')
+    #score = do_all(test, 'abe-random')
 
-    print(score)
+    #print(score)

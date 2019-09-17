@@ -4,16 +4,21 @@ from itertools import product
 
 class OverPipeline:
 
-    def __init__(self, initial_module, selector):
+    def __init__(self, initial_module, scorer):
 
         self.initial_module = initial_module
-        self.selector = selector
+        self.scorer = scorer
 
     def run(self, i):
 
         outputs, decisions = self.initial_module.generate([i])
 
-        return self.selector(outputs), decisions
+        scores = self.scorer(outputs, i)
+
+        result, score = max(zip(outputs, scores),
+                            key=lambda x: x[1])
+
+        return result, [decisions, scores]
 
 
 # TODO: use a more efficient data structure, like a stack

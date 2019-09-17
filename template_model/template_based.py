@@ -1,4 +1,8 @@
 from collections import namedtuple
+import re
+
+
+RE_REPLACE_SLOT = re.compile(r'\{slot\d\}')
 
 
 SLOT_NAME = 'slot{}'
@@ -53,6 +57,29 @@ class Template:
                 positioned_data[tt.object] = reg_f(it.object, ctx)
 
         return self.template_text.format(**positioned_data)
+
+    def fill_2(self, triples, reg_f, ctx):
+
+        text = self.template_text
+
+        for tt, it in zip(self.template_triples, triples):
+
+            text = text.replace(tt.subject, reg_f(it.subject, ctx))
+            text = text.replace(tt.object, reg_f(it.object, ctx))
+
+        return text
+
+    def partial_fill(self, ix, s_or_o, value):
+
+        text = self.template_text
+
+        text = text.replace('{{{}}}'.format(s_or_o(self.template_triples[ix])),
+                            value,
+                            count=1)
+
+        text = RE_REPLACE_SLOT.sub('<N>', text)
+
+        return text
 
     def __hash__(self):
 

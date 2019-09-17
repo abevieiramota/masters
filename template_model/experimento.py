@@ -31,15 +31,23 @@ def make_pipe(use_lm):
 
         import kenlm
 
-        lm = partial(kenlm.Model('../data/kenlm/lm.arpa').score,
-                     bos=False,
-                     eos=False)
-        ts_lm = partial(kenlm.Model('../data/kenlm/ts_lm.arpa').score,
-                        bos=False,
-                        eos=False)
+        lm_1 = partial(kenlm.Model('../data/kenlm/lm_1.arpa').score,
+                       bos=False,
+                       eos=False)
+        lm_gt1 = partial(kenlm.Model('../data/kenlm/lm_gt1.arpa').score,
+                         bos=False,
+                         eos=False)
+        ts_1_lm = partial(kenlm.Model('../data/kenlm/ts_1_lm.arpa').score,
+                          bos=False,
+                          eos=False)
+        ts_gt1_lm = partial(kenlm.Model('../data/kenlm/ts_gt1_lm.arpa').score,
+                            bos=False,
+                            eos=False)
     else:
-        lm = lambda x: Random().randint(0, 1000)
-        ts_lm = lambda x: Random().randint(0, 1000)
+        lm_1 = lambda x: Random().randint(0, 1000)
+        lm_gt1 = lambda x: Random().randint(0, 1000)
+        ts_1_lm = lambda x: Random().randint(0, 1000)
+        ts_gt1_lm = lambda x: Random().randint(0, 1000)
 
     pronoun_db = load_pronoun_db()
     name_db = load_name_db()
@@ -85,12 +93,16 @@ def make_pipe(use_lm):
 
         agg_part = flow_chain[-1]
 
-        ts_result = [ts_lm(t.fill(agg_part, lambda so, ctx: so, None))
+        ts_result = []
+
+        lm = ts_gt1_lm if len(agg_part) == 1 else ts_1_lm
+
+        ts_result = [lm(t.fill(agg_part, lambda so, ctx: so, None).lower())
                      for t in ts]
 
         return ts_result
 
-    ts_n_max = 7
+    ts_n_max = 5
     ts = MultiModule('TS', ts_gen, ts_scorer, ts_n_max, tg)
 
     sa_gen = lambda flow_chain: list(partitions(flow_chain[-1]))
@@ -103,9 +115,16 @@ def make_pipe(use_lm):
     dp_n_max = 3
     dp = Module('DP', dp_gen, dp_scorer, dp_n_max, sa)
 
-    pipe_selector = lambda x: max(x, key=lm)
+    def pipe_scorer(texts, e):
 
-    pipe = OverPipeline(dp, pipe_selector)
+        len_e = len(e.triples)
+
+        if len_e == 1:
+            return [lm_gt1(x.lower()) for x in texts]
+        else:
+            return [lm_1(x.lower()) for x in texts]
+
+    pipe = OverPipeline(dp, pipe_scorer)
 
     return pipe
 

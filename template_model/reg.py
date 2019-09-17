@@ -33,7 +33,7 @@ class REGer:
 
                 return self.pronoun_db[s].most_common()[0][0]
             else:
-                return ''
+                return preprocess_so(s)
 
         ctx['seen'].add(s)
 

@@ -90,7 +90,7 @@ def make_pipe(use_lm):
 
         return ts_result
 
-    ts_n_max = 5
+    ts_n_max = 7
     ts = MultiModule('TS', ts_gen, ts_scorer, ts_n_max, tg)
 
     sa_gen = lambda flow_chain: list(partitions(flow_chain[-1]))
@@ -100,7 +100,7 @@ def make_pipe(use_lm):
 
     dp_gen = lambda flow_chain: list(permutations(flow_chain[-1].triples))
     dp_scorer= get_dp_scorer()
-    dp_n_max = 2
+    dp_n_max = 3
     dp = Module('DP', dp_gen, dp_scorer, dp_n_max, sa)
 
     pipe_selector = lambda x: max(x, key=lm)

@@ -8,7 +8,7 @@ from reg import REGer, load_name_db, load_pronoun_db
 from arquitetura import Module, OverPipeline, MultiModule
 from experimento_discourse_planning import get_dp_scorer
 from experimento_sentence_aggregation import get_sa_scorer
-from util import Entry
+from util import Entry, preprocess_so
 from functools import partial
 import sys
 import os
@@ -49,24 +49,46 @@ def make_pipe(use_lm):
         ts_1_lm = lambda x: Random().randint(0, 1000)
         ts_gt1_lm = lambda x: Random().randint(0, 1000)
 
-    pronoun_db = load_pronoun_db()
+    #pronoun_db = load_pronoun_db()
     name_db = load_name_db()
-    refer = REGer(pronoun_db, name_db).refer
+    #refer = REGer(pronoun_db, name_db).refer
 
     def tg_gen(flow_chain):
 
-        agg, templates = flow_chain[-2:]
+        templates, regs = flow_chain[-2:]
 
-        ctx = {'seen': set()}
-
-        texts = [t.fill(a, refer, ctx)
-                 for a, t in zip(agg, templates)]
+        texts = [t.fill_(r)
+                 for t, r in zip(templates, regs)]
 
         return [' '.join(texts)]
 
     tg_scorer = lambda x, flow_chain: [-1]
     tg_n_max = 1
     tg = Module('TG', tg_gen, tg_scorer, tg_n_max, None)
+
+    def reg_gen(flow_chain):
+
+        agg_part, template = flow_chain[-2:]
+
+        aligned_data = template.align(agg_part[0])
+
+        reg_data = {}
+        for slot, so in aligned_data.items():
+            if so in name_db:
+                reg_so = name_db[so].most_common()[0][0]
+            else:
+                reg_so = preprocess_so(so)
+
+            reg_data[slot] = reg_so
+
+        return [reg_data]
+
+    def reg_scorer(x, flow_chain):
+
+        return [Random().randint(0, 1000) for _ in range(len(x))]
+
+    reg_n_max = 2
+    reg = MultiModule('REG', reg_gen, reg_scorer, reg_n_max, tg)
 
     with open('../data/templates/template_db/tdb', 'rb') as f:
         template_db = pickle.load(f)
@@ -103,7 +125,7 @@ def make_pipe(use_lm):
         return ts_result
 
     ts_n_max = 5
-    ts = MultiModule('TS', ts_gen, ts_scorer, ts_n_max, tg)
+    ts = MultiModule('TS', ts_gen, ts_scorer, ts_n_max, reg)
 
     sa_gen = lambda flow_chain: list(partitions(flow_chain[-1]))
     sa_scorer = get_sa_scorer()
@@ -163,9 +185,9 @@ if __name__ == '__main__':
 
     test = load_shared_task_test()
 
-    pipe = make_pipe(True)
-    #pipe.run(test[210])
+    pipe = make_pipe(False)
+    pipe.run(test[690])
 
-    score = do_all(test, 'abe-random')
+    #score = do_all(test, 'abe-random')
 
-    print(score)
+    #print(score)

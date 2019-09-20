@@ -44,42 +44,30 @@ class Template:
 
     def fill(self, triples, reg_f, ctx):
 
+        aligned_data = self.align(triples)
+        reg_data = {k: reg_f(v, ctx) for k, v in aligned_data.items()}
+
+        return self.template_text.format(**reg_data)
+
+    def align(self, triples):
+
         positioned_data = {}
 
         for tt, it in zip(self.template_triples, triples):
 
             if tt.subject not in positioned_data:
 
-                positioned_data[tt.subject] = reg_f(it.subject, ctx)
+                positioned_data[tt.subject] = it.subject
 
             if tt.object not in positioned_data:
 
-                positioned_data[tt.object] = reg_f(it.object, ctx)
+                positioned_data[tt.object] = it.object
 
-        return self.template_text.format(**positioned_data)
+        return positioned_data
 
-    def fill_2(self, triples, reg_f, ctx):
+    def fill_(self, slots):
 
-        text = self.template_text
-
-        for tt, it in zip(self.template_triples, triples):
-
-            text = text.replace(tt.subject, reg_f(it.subject, ctx))
-            text = text.replace(tt.object, reg_f(it.object, ctx))
-
-        return text
-
-    def partial_fill(self, ix, s_or_o, value):
-
-        text = self.template_text
-
-        text = text.replace('{{{}}}'.format(s_or_o(self.template_triples[ix])),
-                            value,
-                            count=1)
-
-        text = RE_REPLACE_SLOT.sub('<N>', text)
-
-        return text
+        return self.template_text.format(**slots)
 
     def __hash__(self):
 
@@ -116,6 +104,17 @@ class JustJoinTemplate:
         o = reg_f(t.object, ctx)
 
         return f'{s} {p} {o}.'
+
+    def fill_(self, slots):
+
+        return self.template_text.format(s=slots['slot0'],
+                                         o=slots['slot1'],
+                                         p='')
+
+    def align(self, triples):
+
+        return {'slot0': triples[0].subject,
+                'slot1': triples[0].object}
 
     def __repr__(self):
         return 'template {s} {p} {o}.'

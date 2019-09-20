@@ -33,15 +33,3 @@ def get_dp_scorer():
     scorer = get_scorer(models, fe)
 
     return scorer
-
-
-def cool_ranking(t):
-
-    return (t['feature_template_n_fallback'] == 0,
-            t['feature_template_pct_same_category'],
-            t['feature_agg_less_parts_bigger_first']*-1,
-            t['feature_template_len_1_freq'],
-            t['feature_template_n_max_precision'],
-            t['feature_template_template_freqs'],
-            t['feature_plan_naive_discourse_prob'],
-            t['feature_template_template_freqs'])

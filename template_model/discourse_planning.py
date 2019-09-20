@@ -266,14 +266,10 @@ class DiscoursePlanningFeatures(TransformerMixin):
 
 def get_scorer(models, fe):
 
-    def scorer(os, flow_chain):
-
-        n_triples = len(flow_chain[0].triples)
+    def scorer(os, n_triples):
 
         if n_triples == 1:
             return [-1]
-
-        os = os[::]
 
         data = fe[n_triples].transform(os)
 

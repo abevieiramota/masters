@@ -33,10 +33,10 @@ def get_sa_scorer():
 
     scorer = get_scorer(models, fe)
 
-    def score_one_sentence_per_triple_best(os, flow_chain):
+    def score_one_sentence_per_triple_best(os, n_triples):
 
-        ix_one_sen_per_triple = [i for i in range(len(os)) if len(os[i]) == len(flow_chain[0].triples)][0]
-        scores = scorer(os, flow_chain)
+        ix_one_sen_per_triple = [i for i in range(len(os)) if len(os[i]) == n_triples][0]
+        scores = scorer(os, n_triples)
 
         scores[ix_one_sen_per_triple] = max(scores) + 1
 

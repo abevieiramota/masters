@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from util import load_train_dev, Entry, extract_orders
+from reading_thiagos_templates import load_train, Entry
+from util import extract_orders
 import pickle
 from scipy.stats import kendalltau
 from collections import defaultdict
@@ -74,6 +75,6 @@ def make_dataset():
 
     outpath = '../data/templates/discourse_plan_data'
 
-    td = load_train_dev()
+    train = load_train()
 
-    make_main_model_data(td, outpath)
+    make_main_model_data(train, outpath)

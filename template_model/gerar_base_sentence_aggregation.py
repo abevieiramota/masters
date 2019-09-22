@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from util import load_train_dev
+from reading_thiagos_templates import load_train, Entry
 import pickle
 from collections import defaultdict
 from more_itertools import partitions
@@ -82,6 +82,6 @@ def make_dataset():
 
     outpath = '../data/templates/sentence_aggregation_data'
 
-    td = load_train_dev()
+    train = load_train()
 
-    make_main_model_data(td, outpath)
+    make_main_model_data(train, outpath)

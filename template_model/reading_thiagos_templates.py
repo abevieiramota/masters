@@ -1,7 +1,11 @@
 import re
 from template_based import Template, Triple, abstract_triples
-from collections import defaultdict, Counter
+from collections import defaultdict, Counter, namedtuple
 from nltk import sent_tokenize
+import pickle
+import glob
+import xml.etree.ElementTree as ET
+import os
 
 
 RE_FIND_THIAGO_SLOT = re.compile('((?:AGENT-.)|(?:PATIENT-.)|(?:BRIDGE-.))')
@@ -15,6 +19,70 @@ RE_WEIRD_QUOTE_MARKS = re.compile(r'(`{1,2})|(\'{1,2})')
 
 # {{}} -> é só para escapar as chaves
 SLOT_PLACEHOLDER = '{{{}}}'
+
+V_15_BASEPATH = '../../webnlg/data/v1.5/en/'
+
+
+PARENTHESIS_RE = re.compile(r'(.*?)\((.*?)\)')
+CAMELCASE_RE = re.compile(r'([a-z])([A-Z])')
+
+
+Entry = namedtuple('Entry', ['eid',
+                             'category',
+                             'triples',
+                             'lexes',
+                             'entity_map',
+                             'r_entity_map'])
+
+
+# it also creates the corpus used to train the template selector
+def make_template_db(dataset_name):
+
+    template_db = defaultdict(set)
+    template_model_texts = []
+    extraction_error = []
+
+    dataset = load_dataset(dataset_name)
+    dataset_w_entity_map = [e for e in dataset if e.r_entity_map]
+
+    for e in dataset_w_entity_map:
+
+        good_lexes = [l
+                      for l in e.lexes
+                      if (
+                              l['comment'] == 'good'
+                              and l['template']
+                              and l['sorted_triples']
+                              )
+                      ]
+
+        for l in good_lexes:
+
+            ts = make_template(l['sorted_triples'],
+                               l['template'],
+                               e.r_entity_map)
+
+            if not ts:
+                extraction_error.append((e, l))
+
+            for t, triples in zip(ts, l['sorted_triples']):
+
+                template_db[(e.category, t.template_triples)].add(t)
+
+                text = t.fill(triples, lambda x, ctx: x, None)
+
+                template_model_texts.append(text.lower())
+
+    template_db = dict(template_db)
+
+    with open('../data/templates/template_db/tdb', 'wb') as f:
+        pickle.dump(template_db, f)
+
+    with open('../data/kenlm/ts_texts.txt', 'w', encoding='utf-8') as f:
+        for t in template_model_texts:
+            f.write(f'{t}\n')
+
+    return extraction_error
 
 
 def normalize_thiagos_template(s):
@@ -74,6 +142,8 @@ def make_template(sorted_triples, template_text, r_entity_map):
             t = Template(abstracted_triples, template_sen)
 
             templates.append(t)
+        else:
+            return []
 
     return templates
 
@@ -202,3 +272,114 @@ def extract_lexes(entry_elem):
         lexes.append(lex)
 
     return tuple(lexes)
+
+
+def load_dataset(dataset_name):
+
+    with open(f'../evaluation/{dataset_name}.pkl', 'rb') as f:
+        dataset = pickle.load(f)
+
+    return dataset
+
+
+def load_test():
+    return load_dataset('test')
+
+
+def load_shared_task_test():
+
+    with open('../evaluation/test_shared_task.pkl', 'rb') as f:
+        test = pickle.load(f)
+
+    return test
+
+
+def load_train():
+    return load_dataset('train')
+
+
+def load_dev():
+    return load_dataset('dev')
+
+
+def preprocess_so(so):
+
+    parenthesis_preprocessed = PARENTHESIS_RE.sub(r'\g<2> \g<1>', so)
+    underline_removed = parenthesis_preprocessed.replace('_', ' ')
+    camelcase_preprocessed = CAMELCASE_RE.sub(r'\g<1> \g<2>',
+                                              underline_removed)
+
+    return camelcase_preprocessed.strip('" ')
+
+
+def make_dataset_pkl(dataset_name):
+
+    filepaths = glob.glob(os.path.join(V_15_BASEPATH,
+                                       f'{dataset_name}/**/*.xml'),
+                          recursive=True)
+
+    entries = []
+
+    for fp in filepaths:
+
+        tree = ET.parse(fp)
+        root = tree.getroot()
+
+        for entry_elem in root.iter('entry'):
+
+            eid = entry_elem.attrib['eid']
+            category = entry_elem.attrib['category']
+            triples = extract_triples(entry_elem)
+            lexes = extract_lexes(entry_elem)
+            entity_map = extract_entity_map(entry_elem)
+            r_entity_map = {v: k for k, v in entity_map.items()}
+
+            entries.append(Entry(eid,
+                                 category,
+                                 triples,
+                                 lexes,
+                                 entity_map,
+                                 r_entity_map))
+
+    with open(f'../evaluation/{dataset_name}.pkl', 'wb') as f:
+        pickle.dump(entries, f)
+
+
+def make_test_pkl():
+    make_dataset_pkl('test')
+
+
+def make_train_pkl():
+    make_dataset_pkl('train')
+
+
+def make_dev_pkl():
+    make_dataset_pkl('dev')
+
+
+def make_shared_task_test_pkl():
+
+    entries = []
+
+    tree = ET.parse('../evaluation/testdata_with_lex.xml')
+    root = tree.getroot()
+
+    for entry_elem in root.iter('entry'):
+
+        eid = entry_elem.attrib['eid']
+        category = entry_elem.attrib['category']
+        triples = extract_triples(entry_elem)
+
+        entries.append(Entry(eid, category, triples, None, None, None))
+
+    with open('../evaluation/test_shared_task.pkl', 'wb') as f:
+        pickle.dump(entries, f)
+
+
+sorted_triples = [(Triple(subject='Serie_A', predicate='champions', object='Juventus_F.C.'),),
+   (Triple(subject='A.S._Roma', predicate='league', object='Serie_A'),
+    Triple(subject='A.S._Roma', predicate='ground', object='Stadio_Olimpico'))]
+template_text = 'PATIENT-1 have been BRIDGE-1 champions. AGENT-1, who "s ground is PATIENT-2 also play in the same league.'
+r_entity_map = {'A.S._Roma': 'AGENT-1', 'Serie_A': 'BRIDGE-1', 'Juventus_F.C.': 'PATIENT-1', 'Stadio_Olimpico': 'PATIENT-2'}
+
+make_template(sorted_triples, template_text, r_entity_map)

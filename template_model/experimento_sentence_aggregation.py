@@ -8,16 +8,18 @@ from discourse_planning import get_scorer
 from more_itertools import flatten
 
 
-def get_sa_scorer():
+def get_sa_scorer(set_):
 
     models = {}
 
-    with open('../data/templates/sentence_aggregation_data_extractors', 'rb') as f:
+    with open((f'../data/templates/{set_}/sa/'
+               f'sentence_aggregation_data_extractors'), 'rb') as f:
         fe = pickle.load(f)
 
     for i in range(2, 8):
 
-        data = np.load(f'../data/templates/sentence_aggregation_data_{i}.npy')
+        data = np.load((f'../data/templates/{set_}/sa/'
+                        f'sentence_aggregation_data_{i}.npy'))
 
         X = data[:, :-1]
         y = data[:, -1]
@@ -35,7 +37,8 @@ def get_sa_scorer():
 
     def score_one_sentence_per_triple_best(os, n_triples):
 
-        ix_one_sen_per_triple = [i for i in range(len(os)) if len(os[i]) == n_triples][0]
+        ix_one_sen_per_triple = [i for i in range(len(os))
+                                 if len(os[i]) == n_triples][0]
         scores = scorer(os, n_triples)
 
         scores[ix_one_sen_per_triple] = max(scores) + 1

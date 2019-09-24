@@ -35,14 +35,11 @@ Entry = namedtuple('Entry', ['eid',
                              'r_entity_map'])
 
 
-# it also creates the corpus used to train the template selector
-def make_template_db(dataset_name):
+def extract_templates(dataset):
 
-    template_db = defaultdict(set)
-    template_model_texts = []
+    entries_templates = []
     extraction_error = []
 
-    dataset = load_dataset(dataset_name)
     dataset_w_entity_map = [e for e in dataset if e.r_entity_map]
 
     for e in dataset_w_entity_map:
@@ -56,6 +53,8 @@ def make_template_db(dataset_name):
                               )
                       ]
 
+        lexes_templates = []
+
         for l in good_lexes:
 
             ts = make_template(l['sorted_triples'],
@@ -64,25 +63,79 @@ def make_template_db(dataset_name):
 
             if not ts:
                 extraction_error.append((e, l))
+            else:
+                lexes_templates.append((l, ts))
 
-            for t, triples in zip(ts, l['sorted_triples']):
+        if lexes_templates:
+            entries_templates.append((e, lexes_templates))
+
+    return entries_templates, extraction_error
+
+
+def make_template_db(entries_templates):
+
+    template_db = defaultdict(set)
+
+    for e, lexes_templates in entries_templates:
+
+        for l, ts in lexes_templates:
+
+            for t in ts:
 
                 template_db[(e.category, t.template_triples)].add(t)
 
-                text = t.fill(triples, lambda x, ctx: x, None)
-
-                template_model_texts.append(text.lower())
-
     template_db = dict(template_db)
 
-    with open('../data/templates/template_db/tdb', 'wb') as f:
-        pickle.dump(template_db, f)
+    return template_db
 
-    with open('../data/kenlm/ts_texts.txt', 'w', encoding='utf-8') as f:
-        for t in template_model_texts:
-            f.write(f'{t}\n')
 
-    return extraction_error
+def make_template_lm_texts(entries_templates):
+
+    template_lm_texts = []
+
+    for e, lexes_templates in entries_templates:
+
+        for l, ts in lexes_templates:
+
+            for t, triples in zip(ts, l['sorted_triples']):
+
+                text = t.fill(triples, lambda x, ctx: x, None)
+
+                template_lm_texts.append(text)
+
+    return template_lm_texts
+
+
+def extract_refs(dataset):
+
+    import spacy
+
+    nlp = spacy.load('en_core_web_lg')
+
+    name_db = defaultdict(lambda: Counter())
+    pronoun_db = defaultdict(lambda: Counter())
+
+    for e in dataset:
+        good_lexes = [l for l in e.lexes
+                      if l['comment'] == 'good' and e.entity_map]
+        for l in good_lexes:
+            lexicals = get_lexicalizations(l['text'],
+                                           l['template'],
+                                           e.entity_map)
+
+            if lexicals:
+                for lex_key, lex_values in lexicals.items():
+                    for lex_value in lex_values:
+
+                        doc = nlp(lex_value)
+
+                        if len(doc) == 1 and doc[0].pos_ == 'PRON':
+
+                            pronoun_db[lex_key][lex_value] += 1
+                        else:
+                            name_db[lex_key][lex_value] += 1
+
+    return dict(name_db), dict(pronoun_db)
 
 
 def normalize_thiagos_template(s):

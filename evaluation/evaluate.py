@@ -6,10 +6,12 @@ import glob
 from itertools import product
 import csv
 from decimal import Decimal
+import sys
+sys.path.append('../template_model')
+from reading_thiagos_templates import load_shared_task_test, load_dev
 
 
 WEBNLG_USED_REFERENCES = [0, 1, 2]
-
 
 BLEU_RE = re.compile((r'BLEU\ =\ (?P<bleu>.*?),\ (?P<bleu_1>.*?)/'
                       r'(?P<bleu_2>.*?)/(?P<bleu_3>.*?)/(?P<bleu_4>.*?)\ '))
@@ -22,15 +24,16 @@ METEOR_PARAPHRASE_PATH = os.path.join(BASE_DIR,
 TER_PATH = os.path.join(BASE_DIR, 'tools/tercom-0.7.25/tercom.7.25.jar')
 
 
-def model_preprocessed_filepath(model, subset, method=None):
+def model_preprocessed_filepath(model, set_, subset, method=None):
 
     if method == 'ter':
         filepath = os.path.join(BASE_DIR,
-                                (f'../data/models/{model}/'
+                                (f'../data/models/{set_}/{model}/'
                                  f'{model}_{subset}_ter.lex'))
     else:
         filepath = os.path.join(BASE_DIR,
-                                f'../data/models/{model}/{model}_{subset}.lex')
+                                (f'../data/models/{set_}/{model}/'
+                                 f'{model}_{subset}.lex'))
 
     if not os.path.isfile(filepath):
         raise FileNotFoundError(filepath)
@@ -38,12 +41,13 @@ def model_preprocessed_filepath(model, subset, method=None):
     return filepath
 
 
-def bleu(model, subset, references):
+def bleu(model, set_, subset, references):
 
-    preprocessed_filepath = model_preprocessed_filepath(model, subset)
+    preprocessed_filepath = model_preprocessed_filepath(model, set_, subset)
 
     bleu_references = [os.path.join(BASE_DIR,
-                                    f'references/{subset}_reference{r}.lex')
+                                    (f'references/{set_}/'
+                                     f'{subset}_reference{r}.lex'))
                        for r in references]
 
     with open(preprocessed_filepath, 'rb') as f:
@@ -70,13 +74,13 @@ METEOR_SYSTEM_RE = re.compile(r'Final score:\s+([\d\.]+)')
 METEOR_SENTENCE_RE = re.compile(r'Segment.*?score:\s+(.*?)\n')
 
 
-def meteor(model, subset, references, level='system'):
+def meteor(model, set_, subset, references, level='system'):
 
-    preprocessed_filepath = model_preprocessed_filepath(model, subset)
+    preprocessed_filepath = model_preprocessed_filepath(model, set_, subset)
 
     refs_str = '_'.join(str(r) for r in references)
     meteor_references = os.path.join(BASE_DIR,
-                                     (f'references/{subset}_reference'
+                                     (f'references/{set_}/{subset}_reference'
                                       f'{refs_str}.meteor'))
 
     meteor_result = subprocess.run(
@@ -112,13 +116,14 @@ def meteor(model, subset, references, level='system'):
 TER_RE = re.compile(r'Total\ TER:\ ([\d\.]+)\ \(')
 
 
-def ter(model, subset, references):
+def ter(model, set_, subset, references):
 
-    preprocessed_filepath = model_preprocessed_filepath(model, subset, 'ter')
+    preprocessed_filepath = model_preprocessed_filepath(model,
+                                                        set_, subset, 'ter')
 
     refs_str = '_'.join(str(r) for r in references)
     ter_references = os.path.join(BASE_DIR,
-                                  (f'references/{subset}_reference'
+                                  (f'references/{set_}/{subset}_reference'
                                    f'{refs_str}.ter'))
 
     ter_result = subprocess.run(
@@ -139,9 +144,9 @@ def ter(model, subset, references):
                  value=TER_RE.findall(ter_result.stdout.decode('utf-8'))[0])]
 
 
-def avg_n_tokens(model, subset, references):
+def avg_n_tokens(model, set_, subset, references):
 
-    preprocessed_filepath = model_preprocessed_filepath(model, subset)
+    preprocessed_filepath = model_preprocessed_filepath(model, set_, subset)
 
     total_tokens = 0
     total_texts = 0
@@ -159,13 +164,13 @@ def avg_n_tokens(model, subset, references):
                  value=total_tokens / total_texts)]
 
 
-def avg_n_stop_words(model, subset, references):
+def avg_n_stop_words(model, set_, subset, references):
 
     from nltk.corpus import stopwords
 
     sws = stopwords.words('english')
 
-    preprocessed_filepath = model_preprocessed_filepath(model, subset)
+    preprocessed_filepath = model_preprocessed_filepath(model, set_, subset)
 
     total_stops = 0
     total_tokens = 0
@@ -213,25 +218,27 @@ def get_already_calculated_system_eval(system_eval_filepath):
         return calculated_evals
 
 
-def evaluate_all_systems(subsets=None, references_list=None, methods=None):
+def evaluate_all_systems(set_,
+                         subsets=None, references_list=None, methods=None):
 
     systems_filepaths = glob.glob(os.path.join(BASE_DIR,
-                                               '../data/models/*'))
+                                               f'../data/models/{set_}/*'))
 
     # yes, I'm using system and model interchangeably
     model_names = [os.path.basename(s) for s in systems_filepaths]
 
     for model in model_names:
 
-        evaluate_system(model, subsets, references_list, methods)
+        evaluate_system(model, set_, subsets, references_list, methods)
 
 
-def evaluate_system(model, subsets=None, references_list=None, methods=None):
+def evaluate_system(model,
+                    set_, subsets=None, references_list=None, methods=None):
 
     if subsets is None:
         subsets = [os.path.basename(s).split('.')[0]
                    for s in glob.glob(os.path.join(BASE_DIR,
-                                                   'subsets/*.txt'))]
+                                                   f'subsets/{set_}/*.txt'))]
 
     if references_list is None:
         references_list = [WEBNLG_USED_REFERENCES]
@@ -240,7 +247,7 @@ def evaluate_system(model, subsets=None, references_list=None, methods=None):
         methods = SYSTEM_EVALUATION_METHODS.keys()
 
     system_eval_filepath = os.path.join(BASE_DIR,
-                                        (f'../data/models/{model}/'
+                                        (f'../data/models/{set_}/{model}/'
                                          'system_evaluation.csv'))
 
     calculated_evals = get_already_calculated_system_eval(system_eval_filepath)
@@ -255,7 +262,8 @@ def evaluate_system(model, subsets=None, references_list=None, methods=None):
 
                 eval_function = SYSTEM_EVALUATION_METHODS[method]
                 try:
-                    metrics_values = eval_function(model, subset, references)
+                    metrics_values = eval_function(model,
+                                                   set_, subset, references)
 
                     all_results.extend(metrics_values)
                 except FileNotFoundError:
@@ -324,36 +332,27 @@ def preprocess_to_evaluate(model_file, subset_filepath):
                 current_out_line += 1
 
 
-def preprocess_model_to_evaluate(model_file):
+def preprocess_model_to_evaluate(model_file, set_):
 
     subsets_files = glob.glob(os.path.join(BASE_DIR,
-                                           'subsets/*.txt'))
+                                           f'subsets/{set_}/*.txt'))
 
     for subset_file in subsets_files:
 
         preprocess_to_evaluate(model_file, subset_file)
 
 
-def preprocess_all_models():
+def preprocess_all_models(set_):
 
     models_files = glob.glob(os.path.join(BASE_DIR,
-                                          '../data/models/**/*.txt'))
+                                          f'../data/models/{set_}/**/*.txt'))
 
     for model_file in models_files:
 
         preprocess_model_to_evaluate(model_file)
 
 
-def make_subset_ids_file(s, name):
-    # creates a file containing the eid number of the subset entries
-    #   subtracts 1, so it starts from 0 and indicates in which lines
-    #   of the test text file the entries are located
-    ss = s.edf.eid.str.replace(r'Id(\d+)', r'\1').astype(int)
-    ss = ss - 1
-    ss.to_csv(name, index=False, header=False)
-
-
-def make_reference_bleu_files(entries_lexes, subset_file, references):
+def make_reference_bleu_files(entries_lexes, set_, subset_file, references):
 
     subset = os.path.basename(subset_file).split('.')[0]
 
@@ -375,13 +374,13 @@ def make_reference_bleu_files(entries_lexes, subset_file, references):
                     out_lexes.append('')
 
         out_file = os.path.join(BASE_DIR,
-                                f'references/{subset}_reference{i}.lex')
+                                f'references/{set_}/{subset}_reference{i}.lex')
         with open(out_file, 'w', encoding='utf-8') as f:
             for lexe in out_lexes:
                 f.write(f'{lexe}\n')
 
 
-def make_reference_meteor_files(entries_lexes, subset_file, references):
+def make_reference_meteor_files(entries_lexes, set_, subset_file, references):
 
     subset = os.path.basename(subset_file).split('.')[0]
 
@@ -404,14 +403,14 @@ def make_reference_meteor_files(entries_lexes, subset_file, references):
                     out_lexes.append('')
 
     out_file = os.path.join(BASE_DIR,
-                            (f'references/{subset}_reference'
+                            (f'references/{set_}/{subset}_reference'
                              f'{refs_descr}.meteor'))
     with open(out_file, 'w', encoding='utf-8') as f:
         for lexe in out_lexes:
             f.write(f'{lexe}\n')
 
 
-def make_reference_ter_files(entries_lexes, subset_file, references):
+def make_reference_ter_files(entries_lexes, set_, subset_file, references):
 
     subset = os.path.basename(subset_file).split('.')[0]
 
@@ -436,31 +435,27 @@ def make_reference_ter_files(entries_lexes, subset_file, references):
             current_out_line += 1
 
     out_file = os.path.join(BASE_DIR,
-                            f'references/{subset}_reference{refs_descr}.ter')
+                            (f'references/{set_}/'
+                             f'{subset}_reference{refs_descr}.ter'))
     with open(out_file, 'w', encoding='utf-8') as f:
         for lexe in out_lexes:
             f.write(f'{lexe}\n')
 
 
-def make_reference_files(references=[0, 1, 2]):
+def make_reference_files(set_, references=[0, 1, 2]):
 
-    import xml.etree.ElementTree as ET
+    if set_ == 'test':
+        entries = load_shared_task_test()
+    elif set_ == 'dev':
+        entries = load_dev()
 
-    tree = ET.parse(os.path.join(BASE_DIR, 'testdata_with_lex.xml'))
-    root = tree.getroot()
+    entries_lexes = [[normalize_text(l['text']) for l in e.lexes]
+                     for e in entries]
 
-    entries_lexes = []
-
-    for entry in root.iter('entry'):
-
-        lexes = [e.text for e in entry.findall('lex')]
-        preprocessed_lexes = [normalize_text(l) for l in lexes]
-        entries_lexes.append(preprocessed_lexes)
-
-    subsets_files = glob.glob(os.path.join(BASE_DIR, 'subsets/*.txt'))
+    subsets_files = glob.glob(os.path.join(BASE_DIR, f'subsets/{set_}/*.txt'))
 
     for subset_file in subsets_files:
 
-        make_reference_bleu_files(entries_lexes, subset_file, references)
-        make_reference_meteor_files(entries_lexes, subset_file, references)
-        make_reference_ter_files(entries_lexes, subset_file, references)
+        make_reference_bleu_files(entries_lexes, set_, subset_file, references)
+        make_reference_meteor_files(entries_lexes, set_, subset_file, references)
+        make_reference_ter_files(entries_lexes, set_, subset_file, references)

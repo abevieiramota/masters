@@ -1,12 +1,7 @@
 # -*- coding: utf-8 -*-
-from reading_thiagos_templates import load_train, Entry
+def make_ref_texts_lm(entries):
 
-
-def make_ref_texts_lm():
-
-    train = load_train()
-
-    refs = [l['text'].lower() for e in train for l in e.lexes]
+    refs = [l['text'].lower() for e in entries for l in e.lexes]
 
     with open('../data/kenlm/refs_texts.txt', 'w', encoding='utf-8') as f:
         for ref in refs:

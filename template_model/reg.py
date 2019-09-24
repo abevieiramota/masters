@@ -1,29 +1,12 @@
 # -*- coding: utf-8 -*-
-from util import preprocess_so
-import pickle
-
-
-def load_pronoun_db():
-
-    with open('../data/templates/lexicalization/thiago_pronoun_db', 'rb') as f:
-        pronoun_db = pickle.load(f)
-
-    return pronoun_db
-
-
-def load_name_db():
-
-    with open('../data/templates/lexicalization/thiago_name_db', 'rb') as f:
-        name_db = pickle.load(f)
-
-    return name_db
+from reading_thiagos_templates import preprocess_so
 
 
 class REGer:
 
-    def __init__(self, pronoun_db, name_db):
-        self.pronoun_db = pronoun_db
+    def __init__(self, name_db, pronoun_db):
         self.name_db = name_db
+        self.pronoun_db = pronoun_db
 
     def refer(self, s, ctx):
 

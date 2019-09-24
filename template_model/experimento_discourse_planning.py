@@ -7,16 +7,18 @@ import numpy as np
 import pickle
 
 
-def get_dp_scorer():
+def get_dp_scorer(set_):
 
     models = {}
 
-    with open('../data/templates/discourse_plan_data_extractors', 'rb') as f:
+    with open((f'../data/templates/{set_}/dp/'
+               f'discourse_plan_data_extractors'), 'rb') as f:
         fe = pickle.load(f)
 
     for i in range(2, 8):
 
-        data = np.load(f'../data/templates/discourse_plan_data_{i}.npy')
+        data = np.load((f'../data/templates/{set_}/dp/'
+                        f'discourse_plan_data_{i}.npy'))
 
         X = data[:, :-1]
         y = data[:, -1]

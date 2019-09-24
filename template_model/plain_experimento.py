@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 from itertools import permutations, product
 from more_itertools import partitions, sort_together
-import pickle
 from template_based import JustJoinTemplate, abstract_triples
 from reg import REGer, load_name_db, load_pronoun_db
-from experimento_discourse_planning import get_dp_scorer
-from experimento_sentence_aggregation import get_sa_scorer
+#from experimento_discourse_planning import get_dp_scorer
+#from experimento_sentence_aggregation import get_sa_scorer
 from functools import partial
-from util import Entry, preprocess_so
 import sys
-import kenlm
 from random import shuffle
 import os
 sys.path.append('../evaluation')
@@ -23,135 +20,186 @@ def get_random_scores(n):
 
     return rs
 
-dp_scorer = get_dp_scorer()
-#dp_scorer = lambda dps, n_triples: get_random_scores(len(dps))
-MAX_DP = 2
+
+def random_dp_scorer(dps, n_triples):
+
+    return get_random_scores(len(dps))
+
 
 def random_sa_scorer(sas, n_triples):
 
     rs = get_random_scores(len(sas))
 
-    ix_1_triple_1_sen = [i for i, sa in enumerate(sas) if len(sa) == n_triples]
+    ix_1_triple_1_sen = [i for i, sa in enumerate(sas)
+                         if len(sa) == n_triples]
 
     rs[ix_1_triple_1_sen[0]] = 10e5
 
     return rs
 
-sa_scorer = get_sa_scorer()
-#sa_scorer = random_sa_scorer
-MAX_SA = 3
 
-with open('../data/templates/template_db/tdb', 'rb') as f:
-    template_db = pickle.load(f)
-MAX_TS = 5
-jjt = JustJoinTemplate()
-ts_lm = partial(kenlm.Model('../data/kenlm/ts_lm.arpa').score,
-                bos=False,
-                eos=False)
+class TextGenerationPipeline:
 
-pronoun_db = load_pronoun_db()
-name_db = load_name_db()
-refer = REGer(pronoun_db, name_db).refer
-#refer = lambda so, ctx: preprocess_so(so)
+    def __init__(self,
+                 template_db,
+                 tems_lm,
+                 tems_lm_bos,
+                 tems_lm_eos,
+                 tems_lm_preprocess_input,
+                 txs_lm,
+                 txs_lm_bos,
+                 txs_lm_eos,
+                 txs_lm_preprocess_input,
+                 dp_scorer,
+                 sa_scorer,
+                 max_dp,
+                 max_sa,
+                 max_tems,
+                 fallback_template,
+                 referrer):
 
-lm = partial(kenlm.Model('../data/kenlm/refs_lm.arpa').score,
-             bos=False,
-             eos=False)
+        self.template_db = template_db
+        self.tems_lm = tems_lm
+        self.tems_lm_score = partial(tems_lm.score,
+                                     bos=tems_lm_bos,
+                                     eos=tems_lm_eos)
+        self.tems_lm_bos = tems_lm_bos
+        self.tems_lm_eos = tems_lm_eos
+        self.tems_lm_preprocess_input = tems_lm_preprocess_input
+        self.txs_lm = txs_lm
+        self.txs_lm_score = partial(txs_lm.score,
+                                    bos=txs_lm_bos,
+                                    eos=txs_lm_eos)
+        self.txs_lm_bos = txs_lm_bos
+        self.txs_lm_eos = txs_lm_eos
+        self.txs_lm_preprocess_input = txs_lm_preprocess_input
+        self.dp_scorer = dp_scorer
+        self.sa_scorer = sa_scorer
+        self.max_dp = max_dp
+        self.max_sa = max_sa
+        self.max_tems = max_tems
+        self.fallback_template = fallback_template
+        self.referrer = referrer
 
+    def select_discourse_planning(self, entry, n_triples):
 
-def score_template(t, a):
+        dps = list(permutations(entry.triples))
+        dps_scores = self.dp_scorer(dps, n_triples)
+        dps = sort_together([dps_scores, dps],
+                            reverse=True)[1]
 
-    text = t.fill(a, lambda so, ctx: so, None)
-    return ts_lm(text.lower())
+        return dps[:self.n_max_dp]
 
-
-def make_text(entry):
-
-    n_triples = len(entry.triples)
-
-    texts = []
-
-    dps = list(permutations(entry.triples))
-    dps_scores = dp_scorer(dps, n_triples)
-    dps = sort_together([dps_scores, dps],
-                        reverse=True)[1]
-
-    for dp in dps[:MAX_DP]:
+    def select_sentence_aggregation(self, dp, n_triples):
 
         sas = list(partitions(dp))
-        sas_scores = sa_scorer(sas, n_triples)
+        sas_scores = self.sa_scorer(sas, n_triples)
         sas = sort_together([sas_scores, sas],
                             reverse=True)[1]
 
-        for sa in sas[:MAX_SA]:
+        return sas[:self.n_max_sa]
 
-            templates = []
+    def score_template(self, t, a):
 
-            for sa_part in sa:
+        text = t.fill(a, lambda so, ctx: so, None)
+        preprocessed_text = self.tems_lm_preprocess_input(text)
 
-                a_part = abstract_triples(sa_part)
-                t_key = (entry.category, a_part)
+        return self.tems_lm_score(preprocessed_text)
 
-                if t_key in template_db:
-                    t_key_ts = template_db[t_key]
+    def select_templates(self, ts, a):
 
-                    t_key_ts = sorted(t_key_ts,
-                                      key=lambda t: score_template(t, sa_part),
-                                      reverse=True)
+        sorted_ts = sorted(ts,
+                           key=lambda t: self.score_template(t, a),
+                           reverse=True)
+        return sorted_ts[:self.max_tems]
 
-                    templates.append(t_key_ts[:MAX_TS])
-                elif len(a_part) == 1:
-                    templates.append([jjt])
-                else:
-                    templates.append([])
+    def score_text(self, t):
 
-            for ts in product(*templates):
+        preprocesssed_text = self.txs_lm_preprocess_input(t)
 
-                ctx = {'seen': set()}
+        return self.txs_lm_score(preprocesssed_text)
 
-                sent_texts = [t.fill(a, refer, ctx)
-                              for a, t in zip(sa, ts)]
+    def make_texts(self, entry):
 
-                texts.append(' '.join(sent_texts))
+        texts = []
+        n_triples = len(entry.triples)
 
-    texts = sorted(texts,
-                   key=lambda t: lm(t.lower()),
-                   reverse=True)
+        dps = self.select_discourse_planning(entry, n_triples)
 
-    return texts
+        for dp in dps:
+
+            sas = self.select_sentence_aggregation(dp, n_triples)
+
+            for sa in sas:
+
+                templates = []
+
+                for sa_part in sa:
+
+                    a_part = abstract_triples(sa_part)
+                    t_key = (entry.category, a_part)
+
+                    if t_key in self.template_db:
+                        ts = self.template_db[t_key]
+
+                        selected_ts = self.select_templates(ts, sa_part)
+
+                        templates.append(selected_ts)
+                    elif len(a_part) == 1:
+                        templates.append([self.fallback_template])
+                    else:
+                        templates.append([])
+
+                for ts in product(*templates):
+
+                    ctx = {'seen': set()}
+
+                    sent_texts = [t.fill(a, self.referrer, ctx)
+                                  for a, t in zip(sa, ts)]
+
+                    texts.append(' '.join(sent_texts))
+
+        texts = sorted(texts,
+                       key=self.score_text,
+                       reverse=True)
+
+        return texts
 
 
-def make_texts(entries, outpath):
+
+def make_texts(entries, model, outpath):
 
     with open(outpath, 'w', encoding='utf-8') as f:
         for i, e in enumerate(entries):
-            text = make_text(e)[0]
+            text = model(e)[0]
             f.write(f'{text}\n')
             if i % 10 == 0:
                 print(i)
 
 
-def do_all(entries, model_name):
+def do_all(set_, model_name):
 
-    outdir = f'../data/models/{model_name}'
+    data = load_dataset(set_)
+
+    outdir = f'../data/models/{set_}/{model_name}'
     if not os.path.isdir(outdir):
         os.mkdir(outdir)
 
-    outpath = f'../data/models/{model_name}/{model_name}.txt'
+    outpath = f'../data/models/{set_}/{model_name}/{model_name}.txt'
 
-    make_texts(entries, outpath)
+    model = load_model(set_)
 
-    preprocess_model_to_evaluate(outpath)
+    make_texts(data, model, outpath)
 
-    return bleu(model_name, 'old-cat', [0, 1, 2])
+    preprocess_model_to_evaluate(outpath, set_)
+
+    return bleu(model_name, set_, 'old-cat', [0, 1, 2])
 
 
 if __name__ == '__main__':
 
-    from util import load_shared_task_test
+    set_ = 'dev'
 
-    test = load_shared_task_test()
-
-    score = do_all(test, 'abe-random2')
+    score = do_all(set_, 'abe-random2')
 
     print(score)

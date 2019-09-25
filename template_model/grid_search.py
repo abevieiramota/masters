@@ -50,11 +50,11 @@ params = {
         'max_sa': 3,
         'max_tems': 5,
         'fallback_template': 'jjt',
-        'referrer': 'pretrained_counter'
+        'referrer': 'referrer_pretrained'
 }
 
-train = flatten(load_dataset(ds) for ds in params['train_set'])
-test = flatten(load_dataset(ds) for ds in params['test_set'])
+train = list(flatten(load_dataset(ds) for ds in params['train_set']))
+test = list(flatten(load_dataset(ds) for ds in params['test_set']))
 tems_train_preprocess_text = params['tems_train_preprocess_text']
 txs_train_preprocess_text = params['txs_train_preprocess_text']
 model_name = params['model_name']
@@ -152,11 +152,12 @@ for dataset_name in params['train_set']:
                                                params['referrer'])
     name_dbs.append(name_db)
     pronoun_dbs.append(pronoun_db)
+# union of name_db s
 name_db = defaultdict(lambda: Counter())
 for name_db_ in name_dbs:
     for k, v in name_db_.items():
         name_db[k] += v
-
+# union of pronoun_db s
 pronoun_db = defaultdict(lambda: Counter())
 for pronoun_db_ in pronoun_db:
     for k, v in pronoun_db_.items():

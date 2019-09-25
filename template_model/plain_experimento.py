@@ -2,7 +2,6 @@
 from itertools import permutations, product
 from more_itertools import partitions, sort_together
 from template_based import JustJoinTemplate, abstract_triples
-from reg import REGer, load_name_db, load_pronoun_db
 #from experimento_discourse_planning import get_dp_scorer
 #from experimento_sentence_aggregation import get_sa_scorer
 from functools import partial
@@ -88,7 +87,7 @@ class TextGenerationPipeline:
         dps = sort_together([dps_scores, dps],
                             reverse=True)[1]
 
-        return dps[:self.n_max_dp]
+        return dps[:self.max_dp]
 
     def select_sentence_aggregation(self, dp, n_triples):
 
@@ -97,7 +96,7 @@ class TextGenerationPipeline:
         sas = sort_together([sas_scores, sas],
                             reverse=True)[1]
 
-        return sas[:self.n_max_sa]
+        return sas[:self.max_sa]
 
     def score_template(self, t, a):
 

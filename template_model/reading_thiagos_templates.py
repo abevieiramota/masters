@@ -72,23 +72,6 @@ def extract_templates(dataset):
     return entries_templates, extraction_error
 
 
-def make_template_db(entries_templates):
-
-    template_db = defaultdict(set)
-
-    for e, lexes_templates in entries_templates:
-
-        for l, ts in lexes_templates:
-
-            for t in ts:
-
-                template_db[(e.category, t.template_triples)].add(t)
-
-    template_db = dict(template_db)
-
-    return template_db
-
-
 def make_template_lm_texts(entries_templates):
 
     template_lm_texts = []

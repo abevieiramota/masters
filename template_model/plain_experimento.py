@@ -1,40 +1,13 @@
 # -*- coding: utf-8 -*-
 from itertools import permutations, product
 from more_itertools import partitions, sort_together
-from template_based import JustJoinTemplate, abstract_triples
-#from experimento_discourse_planning import get_dp_scorer
-#from experimento_sentence_aggregation import get_sa_scorer
+from template_based import abstract_triples
 from functools import partial
 import sys
 from random import shuffle
 import os
 sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, bleu
-
-
-def get_random_scores(n):
-
-    rs = list(range(n))
-    shuffle(rs)
-
-    return rs
-
-
-def random_dp_scorer(dps, n_triples):
-
-    return get_random_scores(len(dps))
-
-
-def random_sa_scorer(sas, n_triples):
-
-    rs = get_random_scores(len(sas))
-
-    ix_1_triple_1_sen = [i for i, sa in enumerate(sas)
-                         if len(sa) == n_triples]
-
-    rs[ix_1_triple_1_sen[0]] = 10e5
-
-    return rs
 
 
 class TextGenerationPipeline:
@@ -117,6 +90,10 @@ class TextGenerationPipeline:
         preprocesssed_text = self.txs_lm_preprocess_input(t)
 
         return self.txs_lm_score(preprocesssed_text)
+
+    def make_text(self, entry):
+
+        return self.make_texts(entry)[0]
 
     def make_texts(self, entry):
 

@@ -8,8 +8,6 @@ import xml.etree.ElementTree as ET
 import os
 
 
-RE_FIND_THIAGO_SLOT = re.compile('((?:AGENT-.)|(?:PATIENT-.)|(?:BRIDGE-.))')
-
 RE_MATCH_TEMPLATE_KEYS = re.compile(r'(AGENT\\-\d|PATIENT\\-\d|BRIDGE\\-\d)')
 TRANS_ESCAPE_TO_RE = str.maketrans('-', '_', '\\')
 
@@ -184,7 +182,7 @@ def make_template(sorted_triples, template_text, r_entity_map):
     return templates
 
 
-def get_lexicalizations(s, t, entity_map):
+def lexicalization_match(s, t, entity_map):
 
     # permite capturar entidades que aparecem mais de uma vez no template
     # ex:
@@ -226,6 +224,13 @@ def get_lexicalizations(s, t, entity_map):
                                                     re.escape(t)))
 
     m = re.match(t_re, s)
+
+    return m
+
+
+def get_lexicalizations(s, t, entity_map):
+
+    m = lexicalization_match(s, t, entity_map)
 
     lexicals = defaultdict(list)
 
@@ -410,12 +415,3 @@ def make_shared_task_test_pkl():
 
     with open('../evaluation/test_shared_task.pkl', 'wb') as f:
         pickle.dump(entries, f)
-
-
-sorted_triples = [(Triple(subject='Serie_A', predicate='champions', object='Juventus_F.C.'),),
-   (Triple(subject='A.S._Roma', predicate='league', object='Serie_A'),
-    Triple(subject='A.S._Roma', predicate='ground', object='Stadio_Olimpico'))]
-template_text = 'PATIENT-1 have been BRIDGE-1 champions. AGENT-1, who "s ground is PATIENT-2 also play in the same league.'
-r_entity_map = {'A.S._Roma': 'AGENT-1', 'Serie_A': 'BRIDGE-1', 'Juventus_F.C.': 'PATIENT-1', 'Stadio_Olimpico': 'PATIENT-2'}
-
-make_template(sorted_triples, template_text, r_entity_map)

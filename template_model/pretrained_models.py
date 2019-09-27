@@ -8,7 +8,7 @@ from reading_thiagos_templates import (
 )
 import os
 import pickle
-from collections import defaultdict, Counter
+from collections import defaultdict, Counter, namedtuple
 from reg import REGer
 from more_itertools import flatten
 import subprocess
@@ -16,12 +16,16 @@ from random import shuffle
 from template_based import JustJoinTemplate
 from gerar_base_sentence_aggregation import SentenceAggregationFeatures
 from gerar_base_discourse_planning import DiscoursePlanningFeatures
+from random import randint
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PRETRAINED_DIR = os.path.join(BASE_DIR, '../data/pretrained_models')
 REFERRER_COUNTER_FILENAME = 'referrer_counter_{}'
 KENLM = os.path.join(BASE_DIR, '../../kenlm/build/bin/lmplz')
+
+LM = namedtuple('LM', ['score'])
+RANDOM_LM = LM(lambda t, bos, eos: randint(0, 100000))
 
 
 # Referring Expression Generation
@@ -85,6 +89,10 @@ def make_pretrained_name_pronoun_db(dataset_name):
 # Template Selection Language Models
 def load_template_selection_lm(dataset_names, n, lm_name):
 
+    if lm_name == 'random':
+
+        return RANDOM_LM
+
     import kenlm
 
     lm_filename = 'tems_lm_model_{}_{}_{}.arpa'\
@@ -126,6 +134,10 @@ def make_template_selection_lm(dataset_names,
 
 # Text Selection Language Models
 def load_text_selection_lm(dataset_names, n, lm_name):
+
+    if lm_name == 'random':
+
+        return RANDOM_LM
 
     import kenlm
 

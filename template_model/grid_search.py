@@ -17,12 +17,12 @@ from pretrained_models import (
         load_template_fallback,
         load_preprocessing
 )
-from itertools import product
 import sys
 import glob
 import pickle
 from gerar_base_sentence_aggregation import SentenceAggregationFeatures
 from gerar_base_discourse_planning import DiscoursePlanningFeatures
+from sklearn.model_selection import ParameterGrid
 sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, evaluate_system
 
@@ -36,25 +36,65 @@ TEMPLATE_DB_FILENAME = 'template_db'
 KENLM = os.path.join(BASE_DIR, '../../kenlm/build/bin/lmplz')
 MODEL_NAME_BASE = 'general{}'
 
-grid = {
-        'tems_lm_name': ['lower'],
-        'tems_lm_n': [3, 6],
-        'tems_lm_bos': [False],
-        'tems_lm_eos': [False],
-        'tems_lm_preprocess_input': ['lower'],
-        'txs_lm_preprocess_input': ['lower'],
-        'txs_lm_name': ['lower'],
-        'txs_lm_n': [3, 6],
-        'txs_lm_bos': [False],
-        'txs_lm_eos': [False],
-        'dp_scorer': ['random', 'ltr_lasso'],
-        'sa_scorer': ['random', 'ltr_lasso'],
-        'max_dp': [3],
-        'max_sa': [4],
-        'max_tems': [5],
-        'fallback_template': ['jjt'],
-        'referrer': ['counter']
-}
+grid = [
+        {
+            'tems_lm_name': ['lower'],
+            'tems_lm_n': [3, 6],
+            'tems_lm_bos': [False],
+            'tems_lm_eos': [False],
+            'tems_lm_preprocess_input': ['lower'],
+            'txs_lm_preprocess_input': ['lower'],
+            'txs_lm_name': ['lower'],
+            'txs_lm_n': [3, 6],
+            'txs_lm_bos': [False],
+            'txs_lm_eos': [False],
+            'dp_scorer': ['random', 'ltr_lasso'],
+            'sa_scorer': ['random', 'ltr_lasso'],
+            'max_dp': [2],
+            'max_sa': [3],
+            'max_tems': [3],
+            'fallback_template': ['jjt'],
+            'referrer': ['counter']
+        },
+        {
+            'tems_lm_name': ['random'],
+            'tems_lm_n': [None],
+            'tems_lm_bos': [False],
+            'tems_lm_eos': [False],
+            'tems_lm_preprocess_input': ['lower'],
+            'txs_lm_preprocess_input': ['lower'],
+            'txs_lm_name': ['lower'],
+            'txs_lm_n': [3, 6],
+            'txs_lm_bos': [False],
+            'txs_lm_eos': [False],
+            'dp_scorer': ['random', 'ltr_lasso'],
+            'sa_scorer': ['random', 'ltr_lasso'],
+            'max_dp': [2],
+            'max_sa': [3],
+            'max_tems': [3],
+            'fallback_template': ['jjt'],
+            'referrer': ['counter']
+        },
+        {
+            'tems_lm_name': ['lower'],
+            'tems_lm_n': [3, 6],
+            'tems_lm_bos': [False],
+            'tems_lm_eos': [False],
+            'tems_lm_preprocess_input': ['lower'],
+            'txs_lm_preprocess_input': ['lower'],
+            'txs_lm_name': ['random'],
+            'txs_lm_n': [None],
+            'txs_lm_bos': [False],
+            'txs_lm_eos': [False],
+            'dp_scorer': ['random', 'ltr_lasso'],
+            'sa_scorer': ['random', 'ltr_lasso'],
+            'max_dp': [2],
+            'max_sa': [3],
+            'max_tems': [3],
+            'fallback_template': ['jjt'],
+            'referrer': ['counter']
+        }
+]
 
 # already ran
 models = [os.path.basename(p) for p in glob.glob(f'../data/models/dev/*')]
@@ -65,8 +105,7 @@ for model in models:
         already_ran_params.append(params)
 
 
-for params in [{k: v for k, v in zip(grid.keys(), x)}
-               for x in product(*grid.values())]:
+for params in ParameterGrid(grid):
 
     if params in already_ran_params:
         continue
@@ -91,11 +130,9 @@ for params in [{k: v for k, v in zip(grid.keys(), x)}
     # 1.3 Referring Expression Generation
     referrer = load_referrer(['train'], params['referrer'])
     # 1.4 Discourse Planning
-    dp_scorer = load_discourse_planning(['train'],
-                                        params['dp_scorer'])
+    dp_scorer = load_discourse_planning(['train'], params['dp_scorer'])
     # 1.5 Sentence Aggregation
-    sa_scorer = load_sentence_aggregation(['train'],
-                                          params['sa_scorer'])
+    sa_scorer = load_sentence_aggregation(['train'],params['sa_scorer'])
     # 1.6 Template Fallback
     fallback_template = load_template_fallback(['train'],
                                                params['fallback_template'])

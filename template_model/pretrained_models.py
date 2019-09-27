@@ -14,6 +14,8 @@ from more_itertools import flatten
 import subprocess
 from random import shuffle
 from template_based import JustJoinTemplate
+from gerar_base_sentence_aggregation import SentenceAggregationFeatures
+from gerar_base_discourse_planning import DiscoursePlanningFeatures
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -205,6 +207,22 @@ def make_template_db(dataset_names):
         pickle.dump(template_db, f)
 
 
+# Common functions
+def get_scorer(models, fe):
+
+    def scorer(os, n_triples):
+
+        if n_triples == 1:
+            return [-1]
+
+        data = fe[n_triples].transform(os)
+
+        scores = models[n_triples].predict(data)
+
+        return scores
+
+    return scorer
+
 # Discourse Planning
 def get_random_scores(n):
 
@@ -224,6 +242,48 @@ def load_discourse_planning(dataset_names, dp_name):
 
     if dp_name == 'random':
         return random_dp_scorer
+    if dp_name == 'ltr_lasso':
+        return ltr_lasso_dp_scorer(dataset_names)
+
+
+def ltr_lasso_dp_scorer(dataset_names):
+
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import MinMaxScaler
+    from sklearn.linear_model import Lasso
+    import numpy as np
+
+    models = {}
+
+    dataset_names_id = '_'.join(sorted(dataset_names))
+    sa_extractor_filename = 'dp_extractor_{}'.format(dataset_names_id)
+    sa_extractor_filepath = os.path.join(PRETRAINED_DIR, sa_extractor_filename)
+
+    with open(sa_extractor_filepath, 'rb') as f:
+        fe = pickle.load(f)
+
+    for k in range(2, 8):
+
+        sa_data_filename = 'dp_data_{}_{}.npy'.format(dataset_names_id, k)
+        sa_data_filepath = os.path.join(PRETRAINED_DIR, sa_data_filename)
+
+        data = np.load(sa_data_filepath)
+
+        X = data[:, :-1]
+        y = data[:, -1]
+
+        pipe = Pipeline([
+            ('mms',  MinMaxScaler()),
+            ('clf', Lasso(alpha=0.0001))
+        ])
+
+        pipe.fit(X, y)
+
+        models[k] = pipe
+
+    scorer = get_scorer(models, fe)
+
+    return scorer
 
 
 # Sentence Aggregation
@@ -239,10 +299,62 @@ def random_sa_scorer(sas, n_triples):
     return rs
 
 
+def ltr_lasso_sa_scorer(dataset_names):
+
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import MinMaxScaler
+    from sklearn.linear_model import Lasso
+    import numpy as np
+
+    models = {}
+
+    dataset_names_id = '_'.join(sorted(dataset_names))
+    sa_extractor_filename = 'sa_extractor_{}'.format(dataset_names_id)
+    sa_extractor_filepath = os.path.join(PRETRAINED_DIR, sa_extractor_filename)
+
+    with open(sa_extractor_filepath, 'rb') as f:
+        fe = pickle.load(f)
+
+    for k in range(2, 8):
+
+        sa_data_filename = 'sa_data_{}_{}.npy'.format(dataset_names_id, k)
+        sa_data_filepath = os.path.join(PRETRAINED_DIR, sa_data_filename)
+
+        data = np.load(sa_data_filepath)
+
+        X = data[:, :-1]
+        y = data[:, -1]
+
+        pipe = Pipeline([
+            ('mms',  MinMaxScaler()),
+            ('clf', Lasso(alpha=0.0001))
+        ])
+
+        pipe.fit(X, y)
+
+        models[k] = pipe
+
+    scorer = get_scorer(models, fe)
+
+    def score_one_sentence_per_triple_best(os, n_triples):
+
+        ix_one_sen_per_triple = [i for i in range(len(os))
+                                 if len(os[i]) == n_triples][0]
+        scores = scorer(os, n_triples)
+
+        scores[ix_one_sen_per_triple] = max(scores) + 1
+
+        return scores
+
+    return score_one_sentence_per_triple_best
+
+
 def load_sentence_aggregation(dataset_names, sa_name):
 
     if sa_name == 'random':
         return random_sa_scorer
+    if sa_name == 'ltr_lasso':
+        return ltr_lasso_sa_scorer(dataset_names)
 
 
 # Template Fallback
@@ -250,3 +362,10 @@ def load_template_fallback(dataset_names, fallback_name):
 
     if fallback_name == 'jjt':
         return JustJoinTemplate()
+
+
+# Preprocessing
+def load_preprocessing(preprocessing_name):
+
+    if preprocessing_name == 'lower':
+        return lambda t: t.lower()

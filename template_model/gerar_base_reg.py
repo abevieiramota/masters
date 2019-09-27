@@ -55,9 +55,9 @@ def make_datasets():
 
         dataset = load_dataset(dataset_name)
 
-        data, error = zip(*(extract_data(e) for e in dataset))
+        data, errors = zip(*(extract_data(e) for e in dataset))
         data = flatten(data)
-        error = flatten(error)
+        errors = flatten(errors)
 
         dataset_filename = 'reg_{}.csv'.format(dataset_name)
         dataset_filepath = os.path.join(PRETRAINED_DIR,
@@ -74,4 +74,4 @@ def make_datasets():
             writer.writeheader()
             writer.writerows(data)
 
-    return error
+    return errors

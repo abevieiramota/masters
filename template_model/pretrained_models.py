@@ -4,7 +4,8 @@ from reading_thiagos_templates import (
         load_dataset,
         Entry,
         make_template_lm_texts,
-        extract_templates
+        extract_templates,
+        preprocess_so
 )
 import os
 import pickle
@@ -32,11 +33,32 @@ RANDOM_LM = LM(lambda t, bos, eos: randint(0, 100000))
 def load_referrer(dataset_names, referrer_name):
 
     if referrer_name == 'counter':
+        name_db, pronoun_db = load_referrer_counters(dataset_names)
 
-        return load_counter_referrer(dataset_names)
+        reger = REGer(name_db, pronoun_db)
+
+        return reger.refer
+
+    if referrer_name == 'inv_counter':
+        name_db, pronoun_db = load_referrer_counters(dataset_names)
+
+        reger = REGer(name_db,
+                      pronoun_db,
+                      name_db_position=-1,
+                      pronoun_db_position=-1)
+
+        return reger.refer
+
+    if referrer_name == 'preprocess_so':
+        return referrer_preprocess_so
 
 
-def load_counter_referrer(dataset_names):
+def referrer_preprocess_so(s, ctx):
+
+    return preprocess_so(s)
+
+
+def load_referrer_counters(dataset_names):
 
     name_dbs, pronoun_dbs = [], []
     for dataset_name in dataset_names:
@@ -54,9 +76,7 @@ def load_counter_referrer(dataset_names):
         for k, v in pronoun_db_.items():
             pronoun_db[k] += v
 
-    reger = REGer(name_db, pronoun_db)
-
-    return reger.refer
+    return name_db, pronoun_db
 
 
 def load_name_pronoun_db(dataset_name):
@@ -93,13 +113,30 @@ def load_template_selection_lm(dataset_names, n, lm_name):
 
         return RANDOM_LM
 
-    import kenlm
+    if lm_name == 'lower':
 
-    lm_filename = 'tems_lm_model_{}_{}_{}.arpa'\
-        .format(lm_name, n, '_'.join(sorted(dataset_names)))
-    lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+        import kenlm
 
-    return kenlm.Model(lm_filepath)
+        lm_filename = 'tems_lm_model_lower_{}_{}.arpa'\
+            .format(n, '_'.join(sorted(dataset_names)))
+        lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+
+        return kenlm.Model(lm_filepath)
+
+    if lm_name == 'inv_lower':
+
+        import kenlm
+
+        lm_filename = 'tems_lm_model_lower_{}_{}.arpa'\
+            .format(n, '_'.join(sorted(dataset_names)))
+        lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+
+        lm = kenlm.Model(lm_filepath)
+
+        def inv_score(t, bos, eos):
+            return -1*lm.score(t, bos=bos, eos=eos)
+
+        return LM(inv_score)
 
 
 def make_template_selection_lm(dataset_names,
@@ -139,13 +176,30 @@ def load_text_selection_lm(dataset_names, n, lm_name):
 
         return RANDOM_LM
 
-    import kenlm
+    if lm_name == 'lower':
 
-    lm_filename = 'txs_lm_model_{}_{}_{}.arpa'\
-        .format(lm_name, n, '_'.join(sorted(dataset_names)))
-    lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+        import kenlm
 
-    return kenlm.Model(lm_filepath)
+        lm_filename = 'txs_lm_model_lower_{}_{}.arpa'\
+            .format(n, '_'.join(sorted(dataset_names)))
+        lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+
+        return kenlm.Model(lm_filepath)
+
+    if lm_name == 'inv_lower':
+
+        import kenlm
+
+        lm_filename = 'txs_lm_model_lower_{}_{}.arpa'\
+            .format(n, '_'.join(sorted(dataset_names)))
+        lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+
+        lm = kenlm.Model(lm_filepath)
+
+        def inv_score(t, bos, eos):
+            return -1*lm.score(t, bos=bos, eos=eos)
+
+        return LM(inv_score)
 
 
 def make_text_selection_lm(dataset_names,
@@ -256,6 +310,14 @@ def load_discourse_planning(dataset_names, dp_name):
         return random_dp_scorer
     if dp_name == 'ltr_lasso':
         return ltr_lasso_dp_scorer(dataset_names)
+    if dp_name == 'inv_ltr_lasso':
+        scorer = ltr_lasso_dp_scorer(dataset_names)
+
+        def inv_scorer(*args):
+            scores = scorer(*args)
+            return [-1*x for x in scores]
+
+        return inv_scorer
 
 
 def ltr_lasso_dp_scorer(dataset_names):
@@ -311,7 +373,7 @@ def random_sa_scorer(sas, n_triples):
     return rs
 
 
-def ltr_lasso_sa_scorer(dataset_names):
+def ltr_lasso_sa_raw_scorer(dataset_names):
 
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import MinMaxScaler
@@ -348,11 +410,36 @@ def ltr_lasso_sa_scorer(dataset_names):
 
     scorer = get_scorer(models, fe)
 
+    return scorer
+
+
+def ltr_lasso_sa_scorer(dataset_names):
+
+    scorer = ltr_lasso_sa_raw_scorer(dataset_names)
+
     def score_one_sentence_per_triple_best(os, n_triples):
 
         ix_one_sen_per_triple = [i for i in range(len(os))
                                  if len(os[i]) == n_triples][0]
         scores = scorer(os, n_triples)
+
+        scores[ix_one_sen_per_triple] = max(scores) + 1
+
+        return scores
+
+    return score_one_sentence_per_triple_best
+
+
+def inv_ltr_lasso_sa_scorer(dataset_names):
+
+    scorer = ltr_lasso_sa_raw_scorer(dataset_names)
+
+    def score_one_sentence_per_triple_best(os, n_triples):
+
+        ix_one_sen_per_triple = [i for i in range(len(os))
+                                 if len(os[i]) == n_triples][0]
+        scores = scorer(os, n_triples)
+        scores = [-1*x for x in scores]
 
         scores[ix_one_sen_per_triple] = max(scores) + 1
 
@@ -367,6 +454,8 @@ def load_sentence_aggregation(dataset_names, sa_name):
         return random_sa_scorer
     if sa_name == 'ltr_lasso':
         return ltr_lasso_sa_scorer(dataset_names)
+    if sa_name == 'inv_ltr_lasso':
+        return inv_ltr_lasso_sa_scorer(dataset_names)
 
 
 # Template Fallback

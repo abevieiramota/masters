@@ -1,8 +1,10 @@
 from collections import namedtuple
+from util import preprocess_so
 import re
 
 
-RE_REPLACE_SLOT = re.compile(r'\{slot\d\}')
+RE_FIND_SLOT_DEF = re.compile((r'\{(?P<slot_name>slot\d)\-(?P<slot_pos>\d)'
+                               r'-(?P<slot_type>[NDEP])\}'))
 
 
 SLOT_NAME = 'slot{}'
@@ -41,11 +43,17 @@ class Template:
 
         self.template_triples = tuple(triples)
         self.template_text = template_text
+        self.slots = RE_FIND_SLOT_DEF.findall(self.template_text)
 
     def fill(self, triples, reg_f, ctx):
 
         aligned_data = self.align(triples)
-        reg_data = {k: reg_f(v, ctx) for k, v in aligned_data.items()}
+        reg_data = {}
+        for slot_name, slot_pos, slot_type in self.slots:
+            so = aligned_data[slot_name]
+            # FIXME: mover esse cast para int para a criação do template
+            reference = reg_f(so, int(slot_pos), slot_type, ctx)
+            reg_data[f'{slot_name}-{slot_pos}-{slot_type}'] = reference
 
         return self.template_text.format(**reg_data)
 
@@ -64,10 +72,6 @@ class Template:
                 positioned_data[tt.object] = it.object
 
         return positioned_data
-
-    def fill_(self, slots):
-
-        return self.template_text.format(**slots)
 
     def __hash__(self):
 
@@ -99,17 +103,11 @@ class JustJoinTemplate:
 
         t = triples[0]
 
-        s = reg_f(t.subject, ctx)
-        p = reg_f(t.predicate, ctx)
-        o = reg_f(t.object, ctx)
+        s = reg_f(t.subject, 0, 'N', ctx)
+        p = preprocess_so(t.predicate)
+        o = reg_f(t.object, 0, 'N', ctx)
 
         return f'{s} {p} {o}.'
-
-    def fill_(self, slots):
-
-        return self.template_text.format(s=slots['slot0'],
-                                         o=slots['slot1'],
-                                         p='')
 
     def align(self, triples):
 

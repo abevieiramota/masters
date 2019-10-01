@@ -4,8 +4,7 @@ from reading_thiagos_templates import (
         load_dataset,
         Entry,
         make_template_lm_texts,
-        extract_templates,
-        preprocess_so
+        extract_templates
 )
 import os
 import pickle
@@ -18,6 +17,7 @@ from template_based import JustJoinTemplate
 from gerar_base_sentence_aggregation import SentenceAggregationFeatures
 from gerar_base_discourse_planning import DiscoursePlanningFeatures
 from random import randint
+from util import preprocess_so
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -33,19 +33,20 @@ RANDOM_LM = LM(lambda t, bos, eos: randint(0, 100000))
 def load_referrer(dataset_names, referrer_name):
 
     if referrer_name == 'counter':
-        name_db, pronoun_db = load_referrer_counters(dataset_names)
+        ref_db = load_referrer_counters(dataset_names)
 
-        reger = REGer(name_db, pronoun_db)
+        reger = REGer(ref_db)
 
         return reger.refer
 
     if referrer_name == 'inv_counter':
-        name_db, pronoun_db = load_referrer_counters(dataset_names)
+        ref_db = load_referrer_counters(dataset_names)
 
-        reger = REGer(name_db,
-                      pronoun_db,
+        reger = REGer(ref_db,
                       name_db_position=-1,
-                      pronoun_db_position=-1)
+                      pronoun_db_position=-1,
+                      description_db_position=-1,
+                      demonstrative_db_position=-1)
 
         return reger.refer
 
@@ -53,33 +54,25 @@ def load_referrer(dataset_names, referrer_name):
         return referrer_preprocess_so
 
 
-def referrer_preprocess_so(s, ctx):
+def referrer_preprocess_so(s, slot_pos, slot_type, ctx):
 
     return preprocess_so(s)
 
 
 def load_referrer_counters(dataset_names):
 
-    name_dbs, pronoun_dbs = [], []
+    ref_db = defaultdict(lambda: defaultdict(lambda: Counter()))
     for dataset_name in dataset_names:
-        name_db, pronoun_db = load_name_pronoun_db(dataset_name)
-        name_dbs.append(name_db)
-        pronoun_dbs.append(pronoun_db)
-    # union of name_db s
-    name_db = defaultdict(lambda: Counter())
-    for name_db_ in name_dbs:
-        for k, v in name_db_.items():
-            name_db[k] += v
-    # union of pronoun_db s
-    pronoun_db = defaultdict(lambda: Counter())
-    for pronoun_db_ in pronoun_db:
-        for k, v in pronoun_db_.items():
-            pronoun_db[k] += v
+        data = load_ref_dbs(dataset_name)
 
-    return name_db, pronoun_db
+        for type_, entity_c in data.items():
+            for entity, c in entity_c.items():
+                ref_db[type_][entity] += c
+
+    return ref_db
 
 
-def load_name_pronoun_db(dataset_name):
+def load_ref_dbs(dataset_name):
 
     referrer_db_filepath = os.path.join(PRETRAINED_DIR,
                                         REFERRER_COUNTER_FILENAME.format(
@@ -87,10 +80,10 @@ def load_name_pronoun_db(dataset_name):
     with open(referrer_db_filepath, 'rb') as f:
         data = pickle.load(f)
 
-    return data['name_db'], data['pronoun_db']
+    return data
 
 
-def make_pretrained_name_pronoun_db(dataset_name):
+def make_pretrained_ref_dbs(dataset_name):
 
     dataset = load_dataset(dataset_name)
 
@@ -98,12 +91,10 @@ def make_pretrained_name_pronoun_db(dataset_name):
                                         REFERRER_COUNTER_FILENAME.format(
                                                 dataset_name))
 
-    name_db, pronoun_db = extract_refs(dataset)
+    ref_db = extract_refs(dataset)
 
     with open(referrer_db_filepath, 'wb') as f:
-        data = {'name_db': name_db,
-                'pronoun_db': pronoun_db}
-        pickle.dump(data, f)
+        pickle.dump(ref_db, f)
 
 
 # Template Selection Language Models

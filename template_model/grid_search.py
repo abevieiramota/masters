@@ -1,27 +1,12 @@
 # -*- coding: utf-8 -*-
-from reading_thiagos_templates import (
-        load_dataset,
-        Entry
-)
+from reading_thiagos_templates import load_dataset, Entry
+from gerar_base_sentence_aggregation import SentenceAggregationFeatures
+from gerar_base_discourse_planning import DiscoursePlanningFeatures
 import os
-from plain_experimento import (
-        TextGenerationPipeline
-)
-from pretrained_models import (
-        load_referrer,
-        load_template_selection_lm,
-        load_text_selection_lm,
-        load_template_db,
-        load_discourse_planning,
-        load_sentence_aggregation,
-        load_template_fallback,
-        load_preprocessing
-)
+from plain_experimento import make_model
 import sys
 import glob
 import pickle
-from gerar_base_sentence_aggregation import SentenceAggregationFeatures
-from gerar_base_discourse_planning import DiscoursePlanningFeatures
 from sklearn.model_selection import ParameterGrid
 sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, evaluate_system
@@ -38,201 +23,28 @@ MODEL_NAME_BASE = 'general{}'
 
 grid = [
         {
-            'tems_lm_name': ['lower'],
+            #'tems_lm_name': ['inv_lower', 'random', 'lower'],
+            #'txs_lm_name': ['inv_lower', 'random', 'lower'],
+            'tems_lm_name': ['lower', 'random'],
+            'txs_lm_name': ['lower', 'random'],
             'tems_lm_n': [3, 6],
             'tems_lm_bos': [False],
             'tems_lm_eos': [False],
             'tems_lm_preprocess_input': ['lower'],
             'txs_lm_preprocess_input': ['lower'],
-            'txs_lm_name': ['lower'],
             'txs_lm_n': [3, 6],
             'txs_lm_bos': [False],
             'txs_lm_eos': [False],
-            'dp_scorer': ['random', 'ltr_lasso'],
-            'sa_scorer': ['random', 'ltr_lasso'],
+            #'dp_scorer': ['random', 'inv_ltr_lasso', 'ltr_lasso'],
+            #'sa_scorer': ['random', 'inv_ltr_lasso', 'ltr_lasso'],
+            'dp_scorer': ['ltr_lasso', 'random'],
+            'sa_scorer': ['ltr_lasso', 'random'],
             'max_dp': [2],
-            'max_sa': [3],
-            'max_tems': [3],
+            'max_sa': [4],
+            'max_tems': [2],
             'fallback_template': ['jjt'],
-            'referrer': ['counter']
-        },
-        {
-            'tems_lm_name': ['random'],
-            'tems_lm_n': [None],
-            'tems_lm_bos': [False],
-            'tems_lm_eos': [False],
-            'tems_lm_preprocess_input': ['lower'],
-            'txs_lm_preprocess_input': ['lower'],
-            'txs_lm_name': ['lower'],
-            'txs_lm_n': [3, 6],
-            'txs_lm_bos': [False],
-            'txs_lm_eos': [False],
-            'dp_scorer': ['random', 'ltr_lasso'],
-            'sa_scorer': ['random', 'ltr_lasso'],
-            'max_dp': [2],
-            'max_sa': [3],
-            'max_tems': [3],
-            'fallback_template': ['jjt'],
-            'referrer': ['counter']
-        },
-        {
-            'tems_lm_name': ['lower'],
-            'tems_lm_n': [3, 6],
-            'tems_lm_bos': [False],
-            'tems_lm_eos': [False],
-            'tems_lm_preprocess_input': ['lower'],
-            'txs_lm_preprocess_input': ['lower'],
-            'txs_lm_name': ['random'],
-            'txs_lm_n': [None],
-            'txs_lm_bos': [False],
-            'txs_lm_eos': [False],
-            'dp_scorer': ['random', 'ltr_lasso'],
-            'sa_scorer': ['random', 'ltr_lasso'],
-            'max_dp': [2],
-            'max_sa': [3],
-            'max_tems': [3],
-            'fallback_template': ['jjt'],
-            'referrer': ['counter']
-        },
-        # evaluating referrer
-        {
-            'tems_lm_name': ['lower'],
-            'tems_lm_n': [6],
-            'tems_lm_bos': [False],
-            'tems_lm_eos': [False],
-            'tems_lm_preprocess_input': ['lower'],
-            'txs_lm_preprocess_input': ['lower'],
-            'txs_lm_name': ['lower'],
-            'txs_lm_n': [6],
-            'txs_lm_bos': [False],
-            'txs_lm_eos': [False],
-            'dp_scorer': ['ltr_lasso'],
-            'sa_scorer': ['ltr_lasso'],
-            'max_dp': [2],
-            'max_sa': [3],
-            'max_tems': [3],
-            'fallback_template': ['jjt'],
-            'referrer': ['preprocess_so', 'inv_counter']
-        },
-        # evaluating dp
-        {
-            'tems_lm_name': ['lower'],
-            'tems_lm_n': [6],
-            'tems_lm_bos': [False],
-            'tems_lm_eos': [False],
-            'tems_lm_preprocess_input': ['lower'],
-            'txs_lm_preprocess_input': ['lower'],
-            'txs_lm_name': ['lower'],
-            'txs_lm_n': [6],
-            'txs_lm_bos': [False],
-            'txs_lm_eos': [False],
-            'dp_scorer': ['inv_ltr_lasso'],
-            'sa_scorer': ['ltr_lasso'],
-            'max_dp': [2],
-            'max_sa': [3],
-            'max_tems': [3],
-            'fallback_template': ['jjt'],
-            'referrer': ['counter']
-        },
-        # evaluating sa
-        {
-            'tems_lm_name': ['lower'],
-            'tems_lm_n': [6],
-            'tems_lm_bos': [False],
-            'tems_lm_eos': [False],
-            'tems_lm_preprocess_input': ['lower'],
-            'txs_lm_preprocess_input': ['lower'],
-            'txs_lm_name': ['lower'],
-            'txs_lm_n': [6],
-            'txs_lm_bos': [False],
-            'txs_lm_eos': [False],
-            'dp_scorer': ['ltr_lasso'],
-            'sa_scorer': ['inv_ltr_lasso'],
-            'max_dp': [2],
-            'max_sa': [3],
-            'max_tems': [3],
-            'fallback_template': ['jjt'],
-            'referrer': ['counter']
-        },
-        # evaluating template selection lm
-        {
-            'tems_lm_name': ['inv_lower'],
-            'tems_lm_n': [6],
-            'tems_lm_bos': [False],
-            'tems_lm_eos': [False],
-            'tems_lm_preprocess_input': ['lower'],
-            'txs_lm_preprocess_input': ['lower'],
-            'txs_lm_name': ['lower'],
-            'txs_lm_n': [6],
-            'txs_lm_bos': [False],
-            'txs_lm_eos': [False],
-            'dp_scorer': ['ltr_lasso'],
-            'sa_scorer': ['ltr_lasso'],
-            'max_dp': [2],
-            'max_sa': [3],
-            'max_tems': [3],
-            'fallback_template': ['jjt'],
-            'referrer': ['counter']
-        },
-        # evaluating text selection lm
-        {
-            'tems_lm_name': ['lower'],
-            'tems_lm_n': [6],
-            'tems_lm_bos': [False],
-            'tems_lm_eos': [False],
-            'tems_lm_preprocess_input': ['lower'],
-            'txs_lm_preprocess_input': ['lower'],
-            'txs_lm_name': ['inv_lower'],
-            'txs_lm_n': [6],
-            'txs_lm_bos': [False],
-            'txs_lm_eos': [False],
-            'dp_scorer': ['ltr_lasso'],
-            'sa_scorer': ['ltr_lasso'],
-            'max_dp': [2],
-            'max_sa': [3],
-            'max_tems': [3],
-            'fallback_template': ['jjt'],
-            'referrer': ['counter']
-        },
-        # best combination, w less data
-        {
-            'tems_lm_name': ['lower'],
-            'tems_lm_n': [6],
-            'tems_lm_bos': [False],
-            'tems_lm_eos': [False],
-            'tems_lm_preprocess_input': ['lower'],
-            'txs_lm_preprocess_input': ['lower'],
-            'txs_lm_name': ['lower'],
-            'txs_lm_n': [6],
-            'txs_lm_bos': [False],
-            'txs_lm_eos': [False],
-            'dp_scorer': ['ltr_lasso'],
-            'sa_scorer': ['ltr_lasso'],
-            'max_dp': [1],
-            'max_sa': [2],
-            'max_tems': [3, 5, 10],
-            'fallback_template': ['jjt'],
-            'referrer': ['counter']
-        },
-        # best combination, w more data
-        {
-            'tems_lm_name': ['lower'],
-            'tems_lm_n': [6],
-            'tems_lm_bos': [False],
-            'tems_lm_eos': [False],
-            'tems_lm_preprocess_input': ['lower'],
-            'txs_lm_preprocess_input': ['lower'],
-            'txs_lm_name': ['lower'],
-            'txs_lm_n': [6],
-            'txs_lm_bos': [False],
-            'txs_lm_eos': [False],
-            'dp_scorer': ['ltr_lasso'],
-            'sa_scorer': ['ltr_lasso'],
-            'max_dp': [2],
-            'max_sa': [10],
-            'max_tems': [3],
-            'fallback_template': ['jjt'],
-            'referrer': ['counter']
+            'referrer': ['counter', 'preprocess_so']
+            #'referrer': ['counter', 'preprocess_so', 'inv_counter']
         }
 ]
 
@@ -250,51 +62,12 @@ for params in ParameterGrid(grid):
     if params in already_ran_params:
         continue
 
-    model_name = hash(tuple(params.items()))
-    # 1. Grid Search
-    # 1.1. Language Models
-    # 1.1.1 Template Selection Language Model
-    tems_lm = load_template_selection_lm(['train'],
-                                         params['tems_lm_n'],
-                                         params['tems_lm_name'])
-    tems_lm_preprocess_input = load_preprocessing(
-            params['tems_lm_preprocess_input'])
-    # 1.1.2 Text Selection Language Model
-    txs_lm = load_text_selection_lm(['train'],
-                                    params['txs_lm_n'],
-                                    params['txs_lm_name'])
-    txs_lm_preprocess_input = load_preprocessing(
-            params['txs_lm_preprocess_input'])
-    # 1.2 Template database
-    template_db = load_template_db(['train'])
-    # 1.3 Referring Expression Generation
-    referrer = load_referrer(['train'], params['referrer'])
-    # 1.4 Discourse Planning
-    dp_scorer = load_discourse_planning(['train'], params['dp_scorer'])
-    # 1.5 Sentence Aggregation
-    sa_scorer = load_sentence_aggregation(['train'],params['sa_scorer'])
-    # 1.6 Template Fallback
-    fallback_template = load_template_fallback(['train'],
-                                               params['fallback_template'])
+    if 'model_name' not in params:
+        model_name = hash(tuple(params.items()))
+    else:
+        model_name = params['model_name']
 
-    # Model
-    tgp = TextGenerationPipeline(
-            template_db,
-            tems_lm,
-            params['tems_lm_bos'],
-            params['tems_lm_eos'],
-            tems_lm_preprocess_input,
-            txs_lm,
-            params['txs_lm_bos'],
-            params['txs_lm_eos'],
-            txs_lm_preprocess_input,
-            dp_scorer,
-            sa_scorer,
-            params['max_dp'],
-            params['max_sa'],
-            params['max_tems'],
-            fallback_template,
-            referrer)
+    tgp = make_model(params, ['train'])
 
     # create model folder
     outdir = f"../data/models/dev/{model_name}"

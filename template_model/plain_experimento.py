@@ -3,9 +3,20 @@ from itertools import permutations, product
 from more_itertools import partitions, sort_together
 from template_based import abstract_triples
 from functools import partial
+from pretrained_models import (
+        load_referrer,
+        load_template_selection_lm,
+        load_text_selection_lm,
+        load_template_db,
+        load_discourse_planning,
+        load_sentence_aggregation,
+        load_template_fallback,
+        load_preprocessing
+)
+from gerar_base_sentence_aggregation import SentenceAggregationFeatures
+from gerar_base_discourse_planning import DiscoursePlanningFeatures
+from reading_thiagos_templates import Entry
 import sys
-from random import shuffle
-import os
 sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, bleu
 
@@ -73,7 +84,7 @@ class TextGenerationPipeline:
 
     def score_template(self, t, a):
 
-        text = t.fill(a, lambda so, ctx: so, None)
+        text = t.fill(a, lambda so, slot_pos, slot_type, ctx: so, None)
         preprocessed_text = self.tems_lm_preprocess_input(text)
 
         return self.tems_lm_score(preprocessed_text)
@@ -142,40 +153,50 @@ class TextGenerationPipeline:
         return texts
 
 
+def make_model(params, train_set):
+    # 1. Grid Search
+    # 1.1. Language Models
+    # 1.1.1 Template Selection Language Model
+    tems_lm = load_template_selection_lm(train_set,
+                                         params['tems_lm_n'],
+                                         params['tems_lm_name'])
+    tems_lm_preprocess_input = load_preprocessing(
+            params['tems_lm_preprocess_input'])
+    # 1.1.2 Text Selection Language Model
+    txs_lm = load_text_selection_lm(train_set,
+                                    params['txs_lm_n'],
+                                    params['txs_lm_name'])
+    txs_lm_preprocess_input = load_preprocessing(
+            params['txs_lm_preprocess_input'])
+    # 1.2 Template database
+    template_db = load_template_db(train_set)
+    # 1.3 Referring Expression Generation
+    referrer = load_referrer(train_set, params['referrer'])
+    # 1.4 Discourse Planning
+    dp_scorer = load_discourse_planning(train_set, params['dp_scorer'])
+    # 1.5 Sentence Aggregation
+    sa_scorer = load_sentence_aggregation(train_set, params['sa_scorer'])
+    # 1.6 Template Fallback
+    fallback_template = load_template_fallback(train_set,
+                                               params['fallback_template'])
 
-def make_texts(entries, model, outpath):
+    # Model
+    tgp = TextGenerationPipeline(
+            template_db,
+            tems_lm,
+            params['tems_lm_bos'],
+            params['tems_lm_eos'],
+            tems_lm_preprocess_input,
+            txs_lm,
+            params['txs_lm_bos'],
+            params['txs_lm_eos'],
+            txs_lm_preprocess_input,
+            dp_scorer,
+            sa_scorer,
+            params['max_dp'],
+            params['max_sa'],
+            params['max_tems'],
+            fallback_template,
+            referrer)
 
-    with open(outpath, 'w', encoding='utf-8') as f:
-        for i, e in enumerate(entries):
-            text = model(e)[0]
-            f.write(f'{text}\n')
-            if i % 10 == 0:
-                print(i)
-
-
-def do_all(set_, model_name):
-
-    data = load_dataset(set_)
-
-    outdir = f'../data/models/{set_}/{model_name}'
-    if not os.path.isdir(outdir):
-        os.mkdir(outdir)
-
-    outpath = f'../data/models/{set_}/{model_name}/{model_name}.txt'
-
-    model = load_model(set_)
-
-    make_texts(data, model, outpath)
-
-    preprocess_model_to_evaluate(outpath, set_)
-
-    return bleu(model_name, set_, 'old-cat', [0, 1, 2])
-
-
-if __name__ == '__main__':
-
-    set_ = 'dev'
-
-    score = do_all(set_, 'abe-random2')
-
-    print(score)
+    return tgp

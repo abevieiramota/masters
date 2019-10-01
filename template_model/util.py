@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 from more_itertools import flatten
+import re
+
+
+PARENTHESIS_RE = re.compile(r'(.*?)\((.*?)\)')
+CAMELCASE_RE = re.compile(r'([a-z])([A-Z])')
 
 
 def clear_dir(dirpath):
@@ -26,3 +31,13 @@ def extract_orders(e):
             orders.append(None)
 
     return orders
+
+
+def preprocess_so(so):
+
+    parenthesis_preprocessed = PARENTHESIS_RE.sub(r'\g<2> \g<1>', so)
+    underline_removed = parenthesis_preprocessed.replace('_', ' ')
+    camelcase_preprocessed = CAMELCASE_RE.sub(r'\g<1> \g<2>',
+                                              underline_removed)
+
+    return camelcase_preprocessed.strip('" ')

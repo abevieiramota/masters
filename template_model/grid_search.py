@@ -19,7 +19,6 @@ TXS_LM_TEXT_FILENAME = 'txs_lm_text.txt'
 TXS_LM_MODEL_FILENAME = 'txs_lm.arpa'
 TEMPLATE_DB_FILENAME = 'template_db'
 KENLM = os.path.join(BASE_DIR, '../../kenlm/build/bin/lmplz')
-MODEL_NAME_BASE = 'general{}'
 
 grid = [
         {
@@ -128,6 +127,7 @@ for model in models:
         params = pickle.load(f)
         already_ran_params.append(params)
 
+dev = load_dataset('dev')
 
 for params in ParameterGrid(grid):
 
@@ -155,20 +155,26 @@ for params in ParameterGrid(grid):
 
     texts_outpath = (f"../data/models/dev/{model_name}/"
                      f"{model_name}.txt")
-
-    dev = load_dataset('dev')
+    templates_info_outpath = (f'../data/models/dev/{model_name}/'
+                              f'templates_info.pkl')
 
     with open(texts_outpath, 'w', encoding='utf-8') as f:
+        template_infos = []
         for i, e in enumerate(dev):
-            text = tgp.make_text(e)
+            text, *template_info = tgp.make_text(e)
+            template_infos.append(template_info)
             f.write(f'{text}\n')
             if i % 100 == 0:
                 print(i)
+
+    with open(templates_info_outpath, 'wb') as ft:
+        pickle.dump(template_infos, ft)
 
     preprocess_model_to_evaluate(texts_outpath, 'dev')
 
     results = evaluate_system(model_name,
                               'dev',
+                              ['all-cat'],
                               methods=['bleu', 'meteor', 'ter'])
 
     print(model_name)

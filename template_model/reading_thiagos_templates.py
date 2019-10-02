@@ -25,6 +25,8 @@ SLOT_PLACEHOLDER = '{{{}-{}-{}}}'
 
 V_15_BASEPATH = '../../webnlg/data/v1.5/en/'
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 Entry = namedtuple('Entry', ['eid',
                              'category',
@@ -302,7 +304,8 @@ def extract_lexes(entry_elem):
 
 def load_dataset(dataset_name):
 
-    with open(f'../evaluation/{dataset_name}.pkl', 'rb') as f:
+    with open(os.path.join(BASE_DIR,
+                           f'../evaluation/{dataset_name}.pkl'), 'rb') as f:
         dataset = pickle.load(f)
 
     return dataset
@@ -314,7 +317,8 @@ def load_test():
 
 def load_shared_task_test():
 
-    with open('../evaluation/test_shared_task.pkl', 'rb') as f:
+    with open(os.path.join(BASE_DIR,
+                           '../evaluation/test_shared_task.pkl'), 'rb') as f:
         test = pickle.load(f)
 
     return test
@@ -355,7 +359,8 @@ def make_dataset_pkl(dataset_name):
                                  lexes,
                                  entity_map))
 
-    with open(f'../evaluation/{dataset_name}.pkl', 'wb') as f:
+    with open(os.path.join(BASE_DIR,
+                           f'../evaluation/{dataset_name}.pkl'), 'wb') as f:
         pickle.dump(entries, f)
 
 
@@ -375,7 +380,8 @@ def make_shared_task_test_pkl():
 
     entries = []
 
-    tree = ET.parse('../evaluation/testdata_with_lex.xml')
+    tree = ET.parse(os.path.join(BASE_DIR,
+                                 '../evaluation/testdata_with_lex.xml'))
     root = tree.getroot()
 
     for entry_elem in root.iter('entry'):
@@ -386,7 +392,8 @@ def make_shared_task_test_pkl():
 
         entries.append(Entry(eid, category, triples, None, None))
 
-    with open('../evaluation/test_shared_task.pkl', 'wb') as f:
+    with open(os.path.join(BASE_DIR,
+                           '../evaluation/test_shared_task.pkl'), 'wb') as f:
         pickle.dump(entries, f)
 
 

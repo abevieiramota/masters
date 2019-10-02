@@ -94,6 +94,9 @@ class JustJoinTemplate:
     def __init__(self):
 
         self.template_text = '{s} {p} {o}.'
+        # FIXME: adicionado apenas para fazer funcionar o len(t.template_triples)
+        #    para calcular o tamanho do template
+        self.template_triples = [None]
 
     def fill(self, triples, reg_f, ctx):
 

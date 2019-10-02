@@ -143,11 +143,15 @@ class TextGenerationPipeline:
 
                     sent_texts = [t.fill(a, self.referrer, ctx)
                                   for a, t in zip(sa, ts)]
+                    templates_info = [(t == self.fallback_template,
+                                       len(t.template_triples)) for t in ts]
 
-                    texts.append(' '.join(sent_texts))
+                    texts.append((' '.join(sent_texts),
+                                  templates_info,
+                                  n_triples))
 
         texts = sorted(texts,
-                       key=self.score_text,
+                       key=lambda tti: self.score_text(tti[0]),
                        reverse=True)
 
         return texts

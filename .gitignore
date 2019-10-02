@@ -130,3 +130,4 @@ bkp/
 kenlm/
 *.npy
 *.csv
+data/models/dev*

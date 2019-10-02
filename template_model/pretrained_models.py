@@ -295,6 +295,34 @@ def random_dp_scorer(dps, n_triples):
     return get_random_scores(len(dps))
 
 
+def gold_dp_scorer(dataset_names):
+
+    dev = load_dataset('dev')
+    i = 0
+
+    def gold_dp_scorer_(dps, n_triples):
+
+        nonlocal i
+
+        sts = []
+        for l in dev[i].lexes:
+            st = l['sorted_triples']
+            if st:
+                sts.append(tuple(flatten(st)))
+
+        scores = []
+        for dp in dps:
+            if dp in sts:
+                scores.append(1)
+            else:
+                scores.append(0)
+        i = i + 1
+
+        return scores
+
+    return gold_dp_scorer_
+
+
 def load_discourse_planning(dataset_names, dp_name):
 
     if dp_name == 'random':
@@ -309,6 +337,10 @@ def load_discourse_planning(dataset_names, dp_name):
             return [-1*x for x in scores]
 
         return inv_scorer
+    # ! atualmente só funciona se o target for dev
+    # !    e a geração dos textos for na ordem das entries no load_dev()
+    if dp_name == 'gold':
+        return gold_dp_scorer(dataset_names)
 
 
 def ltr_lasso_dp_scorer(dataset_names):
@@ -439,6 +471,43 @@ def inv_ltr_lasso_sa_scorer(dataset_names):
     return score_one_sentence_per_triple_best
 
 
+def gold_sa_scorer(dataset_names):
+
+    dev = load_dataset('dev')
+    seen = set()
+    i = 0
+
+    def gold_sa_scorer_(sas, n_triples):
+
+        nonlocal i
+        nonlocal seen
+
+        tripleset = tuple(sorted(flatten(sas[0])))
+
+        aggs = []
+        for l in dev[i].lexes:
+            st = l['sorted_triples']
+            if st:
+                aggs.append([[x for x in y] for y in st])
+
+        scores = []
+        for sa in sas:
+            if len(sa) == n_triples:
+                scores.append(2)
+            elif sa in aggs:
+                scores.append(1)
+            else:
+                scores.append(0)
+
+        if tripleset not in seen:
+            i = i + 1
+            seen.add(tripleset)
+
+        return scores
+
+    return gold_sa_scorer_
+
+
 def load_sentence_aggregation(dataset_names, sa_name):
 
     if sa_name == 'random':
@@ -447,6 +516,10 @@ def load_sentence_aggregation(dataset_names, sa_name):
         return ltr_lasso_sa_scorer(dataset_names)
     if sa_name == 'inv_ltr_lasso':
         return inv_ltr_lasso_sa_scorer(dataset_names)
+    # ! atualmente só funciona se o target for dev
+    # !    e a geração dos textos for na agregação das entries no load_dev()
+    if sa_name == 'gold':
+        return gold_sa_scorer(dataset_names)
 
 
 # Template Fallback

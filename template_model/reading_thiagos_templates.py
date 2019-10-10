@@ -83,13 +83,18 @@ def make_template_lm_texts(entries_templates):
 
     template_lm_texts = []
 
-    for e, lexes_templates in entries_templates:
+    for i, (e, lexes_templates) in enumerate(entries_templates):
 
         for l, ts in lexes_templates:
 
             for t, triples in zip(ts, l['sorted_triples']):
 
-                text = t.fill(triples, lambda x, ctx: x, None)
+                try:
+                    text = t.fill(triples, lambda x, pos, type_, ctx: x, None)
+                except Exception as ex:
+                    print(i)
+
+                    raise ex
 
                 template_lm_texts.append(text)
 
@@ -182,7 +187,7 @@ def make_template(sorted_triples,
 
         # FIXME: estou ocultando erros
         if set(keys_in_template_sen) - map_template_key_to_slot.keys():
-            continue
+            return []
 
         for key in keys_in_template_sen:
             i_occurrence = entity_ref_counter[key]

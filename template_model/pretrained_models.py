@@ -18,6 +18,7 @@ from gerar_base_sentence_aggregation import SentenceAggregationFeatures
 from gerar_base_discourse_planning import DiscoursePlanningFeatures
 from random import randint
 from util import preprocess_so
+from functools import lru_cache
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -30,6 +31,7 @@ RANDOM_LM = LM(lambda t, bos, eos: randint(0, 100000))
 
 
 # Referring Expression Generation
+@lru_cache(maxsize=10)
 def load_referrer(dataset_names, referrer_name):
 
     if referrer_name == 'counter':
@@ -98,6 +100,7 @@ def make_pretrained_ref_dbs(dataset_name):
 
 
 # Template Selection Language Models
+@lru_cache(maxsize=10)
 def load_template_selection_lm(dataset_names, n, lm_name):
 
     if lm_name == 'random':
@@ -161,6 +164,7 @@ def make_template_selection_lm(dataset_names,
 
 
 # Text Selection Language Models
+@lru_cache(maxsize=10)
 def load_text_selection_lm(dataset_names, n, lm_name):
 
     if lm_name == 'random':
@@ -226,6 +230,7 @@ def make_text_selection_lm(dataset_names,
 
 
 # Template DB
+@lru_cache(maxsize=10)
 def load_template_db(dataset_names):
 
     template_db_filename = 'template_db_{}'.format(
@@ -323,6 +328,7 @@ def gold_dp_scorer(dataset_names):
     return gold_dp_scorer_
 
 
+@lru_cache(maxsize=10)
 def load_discourse_planning(dataset_names, dp_name):
 
     if dp_name == 'random':
@@ -508,6 +514,7 @@ def gold_sa_scorer(dataset_names):
     return gold_sa_scorer_
 
 
+@lru_cache(maxsize=10)
 def load_sentence_aggregation(dataset_names, sa_name):
 
     if sa_name == 'random':

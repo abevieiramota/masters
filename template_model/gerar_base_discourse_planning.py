@@ -12,6 +12,7 @@ from itertools import permutations
 import numpy as np
 import os
 from functools import reduce
+from more_itertools import flatten
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -49,14 +50,16 @@ def make_data(entries):
     return data_train
 
 
-def make_main_model_data(dataset_name):
+def make_main_model_data(dataset_names):
 
-    data = load_dataset(dataset_name)
+    subset_names = '_'.join(sorted(dataset_names))
+
+    data = list(flatten(load_dataset(d) for d in dataset_names))
 
     data_to_train_discourse_plan_ranker = [t
                                            for t in data
                                            if len(t.triples) > 1
-                                           and t.r_entity_map]
+                                           and t.entity_map]
 
     data = make_data(data_to_train_discourse_plan_ranker)
 
@@ -74,14 +77,14 @@ def make_main_model_data(dataset_name):
         data = np.c_[np.array(X), y]
         data = np.unique(data, axis=0)
 
-        dp_data_filename = f'dp_data_{dataset_name}_{k}'
+        dp_data_filename = f'dp_data_{subset_names}_{k}'
         dp_data_filepath = os.path.join(PRETRAINED_DIR, dp_data_filename)
 
         np.save(dp_data_filepath, data)
 
         extractors[k] = ef
 
-    dp_extractor_filename = f'dp_extractor_{dataset_name}'
+    dp_extractor_filename = f'dp_extractor_{subset_names}'
     dp_extractor_filepath = os.path.join(PRETRAINED_DIR, dp_extractor_filename)
 
     with open(dp_extractor_filepath, 'wb') as f:

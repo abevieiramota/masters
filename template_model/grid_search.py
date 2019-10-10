@@ -7,6 +7,7 @@ from plain_experimento import make_model
 import sys
 import glob
 import pickle
+from itertools import islice
 from sklearn.model_selection import ParameterGrid
 sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, evaluate_system
@@ -25,13 +26,13 @@ grid = [
             'tems_lm_name': ['lower', 'inv_lower'],
             'txs_lm_name': ['lower', 'inv_lower'],
             'tems_lm_n': [3, 6],
-            'tems_lm_bos': [False],
-            'tems_lm_eos': [False],
+            'tems_lm_bos': [True],
+            'tems_lm_eos': [True],
             'tems_lm_preprocess_input': ['lower'],
             'txs_lm_preprocess_input': ['lower'],
             'txs_lm_n': [3, 6],
-            'txs_lm_bos': [False],
-            'txs_lm_eos': [False],
+            'txs_lm_bos': [True],
+            'txs_lm_eos': [True],
             'dp_scorer': ['ltr_lasso', 'random', 'inv_ltr_lasso'],
             'sa_scorer': ['ltr_lasso', 'random', 'inv_ltr_lasso'],
             'max_dp': [2],
@@ -134,12 +135,15 @@ for params in ParameterGrid(grid):
     if params in already_ran_params:
         continue
 
+    for param, value in params.items():
+        print(param, ':', value)
+
     if 'model_name' not in params:
         model_name = hash(tuple(params.items()))
     else:
         model_name = params['model_name']
 
-    tgp = make_model(params, ['train'])
+    tgp = make_model(params, ('train',))
 
     # create model folder
     outdir = f"../data/models/dev/{model_name}"

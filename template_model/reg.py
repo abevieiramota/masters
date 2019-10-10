@@ -25,13 +25,18 @@ class REGer:
             if slot_type == 'N':
                 slot_type = 'P'
 
+        if s not in ctx['seen'] or slot_pos == 0:
+
+            if slot_type == 'P':
+                slot_type == 'N'
+
         ctx['seen'].add(s)
 
         if slot_type == 'N':
             if s in self.ref_db['N']:
                 return self.ref_db['N'][s].most_common()[self.name_db_position][0]
             else:
-                slot_type = 'P'
+                slot_type = 'D'
 
         if slot_type == 'P':
             if s in self.ref_db['P']:
@@ -43,7 +48,7 @@ class REGer:
             if s in self.ref_db['D']:
                 return self.ref_db['D'][s].most_common()[self.description_db_position][0]
             else:
-                slot_type == 'E'
+                self.fallback(s)
 
         if slot_type == 'E':
             if s in self.ref_db['E']:

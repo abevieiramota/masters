@@ -21,7 +21,7 @@ RE_SPACE_BEFORE_COMMA_DOT = re.compile(r'(?<=\b)\s(?=\.|,)')
 RE_WEIRD_QUOTE_MARKS = re.compile(r'(`{1,2})|(\'{1,2})')
 
 # {{}} -> é só para escapar as chaves
-SLOT_PLACEHOLDER = '{{{}-{}-{}}}'
+SLOT_PLACEHOLDER = '{{{}-{}}}'
 
 V_15_BASEPATH = '../../webnlg/data/v1.5/en/'
 
@@ -65,8 +65,7 @@ def extract_templates(dataset):
 
             ts = make_template(l['sorted_triples'],
                                l['template'],
-                               e.entity_map,
-                               l['references'])
+                               e.entity_map)
 
             if not ts:
                 extraction_error.append((e, l))
@@ -101,7 +100,7 @@ def make_template_lm_texts(entries_templates):
     return template_lm_texts
 
 
-def extract_refs(dataset):
+def extract_thiagos_refs(dataset):
 
     refs = defaultdict(lambda: defaultdict(lambda: Counter()))
 
@@ -154,22 +153,11 @@ def delexicalize_triples(triples, entity_map):
 
 def make_template(sorted_triples,
                   template_text,
-                  entity_map,
-                  references):
+                  entity_map):
 
     templates = []
 
     template_sens = sent_tokenize(template_text)
-
-    types_by_key = defaultdict(list)
-    keys_in_references = set()
-
-    for ref in references:
-
-        ref_type = MAP_REF_TYPE_TO_KEY[ref['type']]
-
-        types_by_key[ref['tag']].append(ref_type)
-        keys_in_references.add(ref['tag'])
 
     for template_sen, triples_sen in zip(template_sens, sorted_triples):
 
@@ -192,11 +180,7 @@ def make_template(sorted_triples,
         for key in keys_in_template_sen:
             i_occurrence = entity_ref_counter[key]
             slot = map_template_key_to_slot[key]
-            # FIXME: estou ocultando erros
-            if i_occurrence >= len(types_by_key[key]):
-                return []
-            type_ = types_by_key[key][i_occurrence]
-            s_slot = SLOT_PLACEHOLDER.format(slot, i_occurrence, type_)
+            s_slot = SLOT_PLACEHOLDER.format(slot, i_occurrence)
             template_sen = template_sen.replace(key, s_slot, 1)
 
             entity_ref_counter[key] += 1
@@ -209,7 +193,7 @@ def make_template(sorted_triples,
 
         if all_slots_in_sen:
             # removes @ -> looks like an error
-            template_sen = template_sen.replace('@', '')
+            template_sen = template_sen.replace('@', '').lower()
             t = Template(abstracted_triples, template_sen)
 
             templates.append(t)
@@ -476,7 +460,6 @@ def lexicalization_match(s, t, entity_map):
     #    adiciona ^ e $ para delimitar o início e fim da string
     t_re = '^{}$'.format(RE_MATCH_TEMPLATE_KEYS_LEX.sub(replace_sop,
                                                         re.escape(t)))
-
     m = re.match(t_re, s)
 
     return m

@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 from reading_thiagos_templates import (
-        extract_refs,
+        extract_thiagos_refs,
         load_dataset,
         Entry,
         make_template_lm_texts,
-        extract_templates
+        extract_templates,
+        get_lexicalizations
 )
 import os
 import pickle
 from collections import defaultdict, Counter, namedtuple
-from reg import REGer
+from reg import REGer, EmptyREGer, FirstNameOthersPronounREG
 from more_itertools import flatten
 import subprocess
 from random import shuffle
@@ -23,7 +24,8 @@ from functools import lru_cache
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PRETRAINED_DIR = os.path.join(BASE_DIR, '../data/pretrained_models')
-REFERRER_COUNTER_FILENAME = 'referrer_counter_{}'
+THIAGOS_REFERRER_COUNTER_FILENAME = 'thiagos_referrer_counter_{}'
+ABE_REFERRER_COUNTER_FILENAME = 'abe_referrer_counter_{}'
 KENLM = os.path.join(BASE_DIR, '../../kenlm/build/bin/lmplz')
 
 LM = namedtuple('LM', ['score'])
@@ -32,17 +34,17 @@ RANDOM_LM = LM(lambda t, bos, eos: randint(0, 100000))
 
 # Referring Expression Generation
 @lru_cache(maxsize=10)
-def load_referrer(dataset_names, referrer_name):
+def load_referrer(dataset_names, referrer_name, max_ref=0):
 
-    if referrer_name == 'counter':
-        ref_db = load_referrer_counters(dataset_names)
+    if referrer_name == 'thiagos':
+        ref_db = load_thiagos_referrer_counters(dataset_names)
 
         reger = REGer(ref_db)
 
-        return reger.refer
+        return reger
 
-    if referrer_name == 'inv_counter':
-        ref_db = load_referrer_counters(dataset_names)
+    if referrer_name == 'inv_thiagos':
+        ref_db = load_thiagos_referrer_counters(dataset_names)
 
         reger = REGer(ref_db,
                       name_db_position=-1,
@@ -50,22 +52,37 @@ def load_referrer(dataset_names, referrer_name):
                       description_db_position=-1,
                       demonstrative_db_position=-1)
 
-        return reger.refer
+        return reger
 
     if referrer_name == 'preprocess_so':
-        return referrer_preprocess_so
+        class REG_:
+            def refer(s, slot_pos, slot_type, ctx):
+                return preprocess_so(s)
+        return REG_()
+
+    if referrer_name == 'random':
+        ref_db = load_thiagos_referrer_counters(dataset_names)
+
+        reger = REGer(ref_db, is_random=True, seed=1415)
+
+        return reger
+
+    if referrer_name == 'empty':
+        return EmptyREGer()
+
+    if referrer_name == 'abe':
+        ref_db = load_abe_referrer_counters(dataset_names)
+
+        reger = FirstNameOthersPronounREG(ref_db)
+
+        return reger
 
 
-def referrer_preprocess_so(s, slot_pos, slot_type, ctx):
-
-    return preprocess_so(s)
-
-
-def load_referrer_counters(dataset_names):
+def load_thiagos_referrer_counters(dataset_names):
 
     ref_db = defaultdict(lambda: defaultdict(lambda: Counter()))
     for dataset_name in dataset_names:
-        data = load_ref_dbs(dataset_name)
+        data = load_thiagos_ref_dbs(dataset_name)
 
         for type_, entity_c in data.items():
             for entity, c in entity_c.items():
@@ -74,26 +91,90 @@ def load_referrer_counters(dataset_names):
     return ref_db
 
 
-def load_ref_dbs(dataset_name):
+def load_thiagos_ref_dbs(dataset_name):
 
-    referrer_db_filepath = os.path.join(PRETRAINED_DIR,
-                                        REFERRER_COUNTER_FILENAME.format(
-                                                dataset_name))
+    filename = THIAGOS_REFERRER_COUNTER_FILENAME.format(dataset_name)
+    referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
+
     with open(referrer_db_filepath, 'rb') as f:
         data = pickle.load(f)
 
     return data
 
 
-def make_pretrained_ref_dbs(dataset_name):
+def load_abe_referrer_counters(dataset_names):
+
+    ref_db = defaultdict(lambda: defaultdict(lambda: Counter()))
+    for dataset_name in dataset_names:
+        data = load_abe_ref_dbs(dataset_name)
+
+        for type_, entity_c in data.items():
+            for entity, c in entity_c.items():
+                ref_db[type_][entity] += c
+
+    return ref_db
+
+
+def load_abe_ref_dbs(dataset_name):
+
+    filename = ABE_REFERRER_COUNTER_FILENAME.format(dataset_name)
+    referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
+
+    with open(referrer_db_filepath, 'rb') as f:
+        data = pickle.load(f)
+
+    return data
+
+
+def make_pretrained_abe_ref_dbs(dataset_name):
 
     dataset = load_dataset(dataset_name)
 
-    referrer_db_filepath = os.path.join(PRETRAINED_DIR,
-                                        REFERRER_COUNTER_FILENAME.format(
-                                                dataset_name))
+    import spacy
+    nlp = spacy.load('en')
 
-    ref_db = extract_refs(dataset)
+    ref_db = defaultdict(lambda: defaultdict(lambda: Counter()))
+
+    for e in dataset:
+
+        good_lexes = [l for l in e.lexes
+                      if l['comment'] == 'good' and e.entity_map]
+
+        for l in good_lexes:
+
+            lexicals = get_lexicalizations(l['text'],
+                                           l['template'],
+                                           e.entity_map)
+
+            if lexicals:
+                for lex_key, lex_values in lexicals.items():
+
+                    for lex_value in lex_values:
+
+                        doc = nlp(lex_value)
+
+                        if len(doc) == 1 and doc[0].pos_ == 'PRON':
+                            ref_db['P'][lex_key][lex_value] += 1
+                        else:
+                            ref_db['N'][lex_key][lex_value] += 1
+
+    filename = ABE_REFERRER_COUNTER_FILENAME.format(dataset_name)
+    referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
+
+    ref_db = {k: dict(v) for k, v in ref_db.items()}
+
+    with open(referrer_db_filepath, 'wb') as f:
+        pickle.dump(ref_db, f)
+
+
+def make_pretrained_thiagos_ref_dbs(dataset_name):
+
+    dataset = load_dataset(dataset_name)
+
+    filename = THIAGOS_REFERRER_COUNTER_FILENAME.format(dataset_name)
+    referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
+
+    ref_db = extract_thiagos_refs(dataset)
 
     with open(referrer_db_filepath, 'wb') as f:
         pickle.dump(ref_db, f)
@@ -231,7 +312,7 @@ def make_text_selection_lm(dataset_names,
 
 # Template DB
 @lru_cache(maxsize=10)
-def load_template_db(dataset_names):
+def load_template_db(dataset_names, ns):
 
     template_db_filename = 'template_db_{}'.format(
             '_'.join(sorted(dataset_names)))
@@ -240,7 +321,11 @@ def load_template_db(dataset_names):
     with open(template_db_filepath, 'rb') as f:
         template_db = pickle.load(f)
 
-    return template_db
+    if ns is None:
+        return template_db
+    else:
+        return {k: v for k, v in template_db.items()
+                if len(k[1]) in ns}
 
 
 def make_template_db(dataset_names):
@@ -284,6 +369,7 @@ def get_scorer(models, fe):
         return scores
 
     return scorer
+
 
 # Discourse Planning
 def get_random_scores(n):
@@ -456,7 +542,8 @@ def ltr_lasso_sa_scorer(dataset_names):
 
         return scores
 
-    return score_one_sentence_per_triple_best
+    #return score_one_sentence_per_triple_best
+    return scorer
 
 
 def inv_ltr_lasso_sa_scorer(dataset_names):

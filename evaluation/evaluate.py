@@ -229,6 +229,8 @@ def evaluate_all_systems(set_,
 
     for model in model_names:
 
+        print(model)
+
         evaluate_system(model, set_, subsets, references_list, methods)
 
 
@@ -281,7 +283,7 @@ def evaluate_system(model,
             writer.writeheader()
         writer.writerows(all_results)
 
-    return system_eval_filepath
+    return all_results
 
 
 TOKENIZER_RE = re.compile(r'(\W)')
@@ -349,7 +351,7 @@ def preprocess_all_models(set_):
 
     for model_file in models_files:
 
-        preprocess_model_to_evaluate(model_file)
+        preprocess_model_to_evaluate(model_file, set_)
 
 
 def make_reference_bleu_files(entries_lexes, set_, subset_file, references):

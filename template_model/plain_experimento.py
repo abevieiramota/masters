@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from itertools import permutations, product
-from more_itertools import partitions, sort_together
+from more_itertools import partitions, sort_together, flatten
 from template_based import abstract_triples
 from functools import partial
 from pretrained_models import (
@@ -38,10 +38,12 @@ class TextGenerationPipeline:
                  max_dp,
                  max_sa,
                  max_tems,
+                 max_refs,
                  fallback_template,
-                 referrer):
+                 reg):
 
         self.template_db = template_db
+        self.categories = set(c for (c, _) in template_db.keys())
         self.tems_lm = tems_lm
         self.tems_lm_score = partial(tems_lm.score,
                                      bos=tems_lm_bos,
@@ -50,9 +52,10 @@ class TextGenerationPipeline:
         self.tems_lm_eos = tems_lm_eos
         self.tems_lm_preprocess_input = tems_lm_preprocess_input
         self.txs_lm = txs_lm
-        self.txs_lm_score = partial(txs_lm.score,
-                                    bos=txs_lm_bos,
-                                    eos=txs_lm_eos)
+        self.txs_lm_score = partial(txs_lm.perplexity)
+        #,
+         #                           bos=txs_lm_bos,
+          #                          eos=txs_lm_eos)
         self.txs_lm_bos = txs_lm_bos
         self.txs_lm_eos = txs_lm_eos
         self.txs_lm_preprocess_input = txs_lm_preprocess_input
@@ -61,8 +64,9 @@ class TextGenerationPipeline:
         self.max_dp = max_dp
         self.max_sa = max_sa
         self.max_tems = max_tems
+        self.max_refs = max_refs
         self.fallback_template = fallback_template
-        self.referrer = referrer
+        self.reg = reg
 
     def select_discourse_planning(self, entry, n_triples):
 
@@ -71,7 +75,7 @@ class TextGenerationPipeline:
         dps = sort_together([dps_scores, dps],
                             reverse=True)[1]
 
-        return dps[:self.max_dp]
+        return dps#[:self.max_dp]
 
     def select_sentence_aggregation(self, dp, n_triples):
 
@@ -80,11 +84,15 @@ class TextGenerationPipeline:
         sas = sort_together([sas_scores, sas],
                             reverse=True)[1]
 
-        return sas[:self.max_sa]
+        return sas#[:self.max_sa]
 
     def score_template(self, t, a):
 
-        text = t.fill(a, lambda so, slot_pos, slot_type, ctx: so, None)
+        aligned_data = t.align(a)
+        reg_data = {}
+        for slot_name, slot_pos in t.slots:
+            reg_data[(f'{slot_name}-{slot_pos}')] = aligned_data[slot_name]
+        text = t.fill(reg_data)
         preprocessed_text = self.tems_lm_preprocess_input(text)
 
         return self.tems_lm_score(preprocessed_text)
@@ -93,7 +101,7 @@ class TextGenerationPipeline:
 
         sorted_ts = sorted(ts,
                            key=lambda t: self.score_template(t, a),
-                           reverse=True)
+                           reverse=False)
         return sorted_ts[:self.max_tems]
 
     def score_text(self, t):
@@ -106,53 +114,107 @@ class TextGenerationPipeline:
 
         return self.make_texts(entry)[0]
 
+    def make_fallback_text(self, entry):
+
+        ctx = {'seen': set()}
+        sent_texts = [self.fallback_template.fill([a], self.referrer, ctx)
+                      for a in entry.triples]
+        return ' '.join(sent_texts)
+
+    def get_templates(self, entry, triples):
+
+        a_triples = abstract_triples(triples)
+        c_key = (entry.category, a_triples)
+
+        if c_key in self.template_db:
+            return self.template_db[c_key]
+
+        templates = list(flatten(self.template_db.get((c, a_triples), [])
+                                 for c in self.categories))
+
+        if templates:
+            return templates
+        elif len(triples) == 1:
+            return [self.fallback_template]
+
+        return None
+
     def make_texts(self, entry):
 
         texts = []
         n_triples = len(entry.triples)
+        n_dp_used = 0
 
-        dps = self.select_discourse_planning(entry, n_triples)
+        for dp in self.select_discourse_planning(entry, n_triples):
+            if n_dp_used == self.max_dp:
+                break
 
-        for dp in dps:
-
-            sas = self.select_sentence_aggregation(dp, n_triples)
-
-            for sa in sas:
+            is_sa_used = False
+            n_sa_used = 0
+            for sa in self.select_sentence_aggregation(dp, n_triples):
+                if n_sa_used == self.max_sa:
+                    break
 
                 templates = []
 
                 for sa_part in sa:
 
-                    a_part = abstract_triples(sa_part)
-                    t_key = (entry.category, a_part)
+                    ts = self.get_templates(entry, sa_part)
 
-                    if t_key in self.template_db:
-                        ts = self.template_db[t_key]
+                    if ts:
+                        sts = self.select_templates(ts, sa_part)
+                        templates.append(sts)
 
-                        selected_ts = self.select_templates(ts, sa_part)
+                if len(templates) < len(sa):
+                    continue
 
-                        templates.append(selected_ts)
-                    elif len(a_part) == 1:
-                        templates.append([self.fallback_template])
-                    else:
-                        templates.append([])
+                n_sa_used += 1
+                is_sa_used = True
 
                 for ts in product(*templates):
 
                     ctx = {'seen': set()}
 
-                    sent_texts = [t.fill(a, self.referrer, ctx)
-                                  for a, t in zip(sa, ts)]
-                    templates_info = [(t == self.fallback_template,
-                                       len(t.template_triples)) for t in ts]
+                    all_sent_texts = []
 
-                    texts.append((' '.join(sent_texts),
-                                  templates_info,
-                                  n_triples))
+                    for a, t in zip(sa, ts):
 
-        texts = sorted(texts,
-                       key=lambda tti: self.score_text(tti[0]),
-                       reverse=True)
+                        sent_texts = []
+
+                        aligned_data = t.align(a)
+                        all_refs = []
+                        slots = []
+
+                        for slot_name, slot_pos in t.slots:
+                            so = aligned_data[slot_name]
+            # FIXME: mover esse cast para int para a criação do template
+                            refs = self.reg.refer(so, ctx, self.max_refs)
+                            slot = f'{slot_name}-{slot_pos}'
+                            slots.append(slot)
+                            all_refs.append(refs)
+
+                        for refs in product(*all_refs):
+
+                            reg_data = {}
+                            for slot, ref in zip(slots, refs):
+                                reg_data[slot] = ref
+
+                            sent_text = t.fill(reg_data)
+                            sent_texts.append(sent_text)
+
+                        all_sent_texts.append(sent_texts)
+
+                    for sents in product(*all_sent_texts):
+
+                        texts.append(' '.join(sents))
+
+            if is_sa_used:
+                n_dp_used += 1
+
+        if texts:
+            texts = sorted(texts, key=self.score_text, reverse=False)
+        else:
+            texts = [self.make_fallback_text(entry)]
 
         return texts
 
@@ -173,9 +235,9 @@ def make_model(params, train_set):
     txs_lm_preprocess_input = load_preprocessing(
             params['txs_lm_preprocess_input'])
     # 1.2 Template database
-    template_db = load_template_db(train_set)
+    template_db = load_template_db(train_set, params.get('tdb_ns', None))
     # 1.3 Referring Expression Generation
-    referrer = load_referrer(train_set, params['referrer'])
+    reg = load_referrer(train_set, params['referrer'])
     # 1.4 Discourse Planning
     dp_scorer = load_discourse_planning(train_set, params['dp_scorer'])
     # 1.5 Sentence Aggregation
@@ -200,7 +262,8 @@ def make_model(params, train_set):
             params['max_dp'],
             params['max_sa'],
             params['max_tems'],
+            params['max_refs'],
             fallback_template,
-            referrer)
+            reg)
 
     return tgp

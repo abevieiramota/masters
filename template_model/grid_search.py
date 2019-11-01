@@ -39,7 +39,7 @@ grid = [
             'max_sa': [4],
             'max_tems': [2],
             'fallback_template': ['jjt'],
-            'referrer': ['counter', 'preprocess_so', 'inv_counter']
+            'referrer': ['thiagos', 'preprocess_so', 'inv_thiagos']
         },
         {
             'tems_lm_name': ['random'],
@@ -58,7 +58,7 @@ grid = [
             'max_sa': [4],
             'max_tems': [2],
             'fallback_template': ['jjt'],
-            'referrer': ['counter', 'preprocess_so', 'inv_counter']
+            'referrer': ['thiagos', 'preprocess_so', 'inv_thiagos']
         },
         {
             'tems_lm_name': ['lower', 'inv_lower'],
@@ -77,7 +77,7 @@ grid = [
             'max_sa': [4],
             'max_tems': [2],
             'fallback_template': ['jjt'],
-            'referrer': ['counter', 'preprocess_so', 'inv_counter']
+            'referrer': ['thiagos', 'preprocess_so', 'inv_thiagos']
         },
         {
             'tems_lm_name': ['random'],
@@ -96,7 +96,7 @@ grid = [
             'max_sa': [4],
             'max_tems': [2],
             'fallback_template': ['jjt'],
-            'referrer': ['counter', 'preprocess_so', 'inv_counter']
+            'referrer': ['thiagos', 'preprocess_so', 'inv_thiagos']
         },
         # gold
         {
@@ -116,10 +116,29 @@ grid = [
             'max_sa': [4],
             'max_tems': [2],
             'fallback_template': ['jjt'],
-            'referrer': ['counter']
+            'referrer': ['thiagos']
         },
 ]
 
+grid =  {
+    'tems_lm_name': ['lower'],
+    'txs_lm_name': ['lower'],
+    'tems_lm_n': [3],
+    'tems_lm_bos': [True],
+    'tems_lm_eos': [True],
+    'tems_lm_preprocess_input': ['lower'],
+    'txs_lm_preprocess_input': ['lower'],
+    'txs_lm_n': [3],
+    'txs_lm_bos': [True],
+    'txs_lm_eos': [True],
+    'dp_scorer': ['ltr_lasso'],
+    'sa_scorer': ['ltr_lasso'],
+    'max_dp': [2],
+    'max_sa': [4],
+    'max_tems': [2, 4, 8, 16],
+    'fallback_template': ['jjt'],
+    'referrer': ['thiagos']
+}
 # already ran
 models = [os.path.basename(p) for p in glob.glob(f'../data/models/dev/*')]
 already_ran_params = []
@@ -159,20 +178,14 @@ for params in ParameterGrid(grid):
 
     texts_outpath = (f"../data/models/dev/{model_name}/"
                      f"{model_name}.txt")
-    templates_info_outpath = (f'../data/models/dev/{model_name}/'
-                              f'templates_info.pkl')
 
     with open(texts_outpath, 'w', encoding='utf-8') as f:
         template_infos = []
         for i, e in enumerate(dev):
-            text, *template_info = tgp.make_text(e)
-            template_infos.append(template_info)
+            text = tgp.make_text(e)
             f.write(f'{text}\n')
             if i % 100 == 0:
                 print(i)
-
-    with open(templates_info_outpath, 'wb') as ft:
-        pickle.dump(template_infos, ft)
 
     preprocess_model_to_evaluate(texts_outpath, 'dev')
 

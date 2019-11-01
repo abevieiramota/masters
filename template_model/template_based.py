@@ -3,8 +3,7 @@ from util import preprocess_so
 import re
 
 
-RE_FIND_SLOT_DEF = re.compile((r'\{(?P<slot_name>slot\d)\-(?P<slot_pos>\d)'
-                               r'-(?P<slot_type>[NDEP])\}'))
+RE_FIND_SLOT_DEF = re.compile((r'\{(?P<slot_name>slot\d)\-(?P<slot_pos>\d)\}'))
 
 
 SLOT_NAME = 'slot{}'
@@ -45,15 +44,7 @@ class Template:
         self.template_text = template_text
         self.slots = RE_FIND_SLOT_DEF.findall(self.template_text)
 
-    def fill(self, triples, reg_f, ctx):
-
-        aligned_data = self.align(triples)
-        reg_data = {}
-        for slot_name, slot_pos, slot_type in self.slots:
-            so = aligned_data[slot_name]
-            # FIXME: mover esse cast para int para a criação do template
-            reference = reg_f(so, int(slot_pos), slot_type, ctx)
-            reg_data[f'{slot_name}-{slot_pos}-{slot_type}'] = reference
+    def fill(self, reg_data):
 
         return self.template_text.format(**reg_data)
 

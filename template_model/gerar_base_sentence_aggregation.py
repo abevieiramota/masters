@@ -56,14 +56,15 @@ def make_data(entries):
     return data_train
 
 
-def make_main_model_data(dataset_name):
+def make_main_model_data(dataset_names):
 
-    data = load_dataset(dataset_name)
+    subsets_name = '_'.join(sorted(dataset_names))
+    data = list(flatten(load_dataset(d) for d in dataset_names))
 
     data_to_train_discourse_plan_ranker = [t
                                            for t in data
                                            if len(t.triples) > 1
-                                           and t.r_entity_map]
+                                           and t.entity_map]
 
     data = make_data(data_to_train_discourse_plan_ranker)
 
@@ -81,14 +82,14 @@ def make_main_model_data(dataset_name):
         data = np.c_[np.array(X), y]
         data = np.unique(data, axis=0)
 
-        sa_data_filename = f'sa_data_{dataset_name}_{k}'
+        sa_data_filename = f'sa_data_{subsets_name}_{k}'
         sa_data_filepath = os.path.join(PRETRAINED_DIR, sa_data_filename)
 
         np.save(sa_data_filepath, data)
 
         extractors[k] = ef
 
-    sa_extractor_filename = f'sa_extractor_{dataset_name}'
+    sa_extractor_filename = f'sa_extractor_{subsets_name}'
     sa_extractor_filepath = os.path.join(PRETRAINED_DIR, sa_extractor_filename)
 
     with open(sa_extractor_filepath, 'wb') as f:

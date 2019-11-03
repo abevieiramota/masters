@@ -420,7 +420,7 @@ def extract_refs_old(dataset):
     return dict(name_db), dict(pronoun_db)
 
 
-def lexicalization_match(s, t, entity_map):
+def lexicalization_match(s, t):
 
     # permite capturar entidades que aparecem mais de uma vez no template
     # ex:
@@ -467,7 +467,7 @@ def lexicalization_match(s, t, entity_map):
 
 def get_lexicalizations(s, t, entity_map):
 
-    m = lexicalization_match(s, t, entity_map)
+    m = lexicalization_match(s, t)
 
     lexicals = defaultdict(list)
 

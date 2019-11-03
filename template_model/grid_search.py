@@ -135,9 +135,10 @@ grid =  {
     'sa_scorer': ['ltr_lasso'],
     'max_dp': [2],
     'max_sa': [4],
-    'max_tems': [2, 4, 8, 16],
+    'max_tems': [2],
+    'max_refs': [1],
     'fallback_template': ['jjt'],
-    'referrer': ['thiagos']
+    'referrer': ['abe']
 }
 # already ran
 models = [os.path.basename(p) for p in glob.glob(f'../data/models/dev/*')]

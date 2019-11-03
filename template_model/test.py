@@ -22,12 +22,13 @@ params = {
         'txs_lm_bos': False,
         'txs_lm_eos': False,
         'dp_scorer': 'ltr_lasso',
-        'sa_scorer': 'random',
+        'sa_scorer': 'ltr_lasso',
         'max_dp': 3,
         'max_sa': 4,
         'max_tems': 5,
+        'max_refs': 1,
         'fallback_template': 'jjt',
-        'referrer': 'counter'
+        'referrer': 'abe'
 }
 
 tgp = make_model(params, ('train', 'dev'))

@@ -7,7 +7,7 @@ from reading_thiagos_templates import load_dev, Entry
 params = {
         'tems_lm_name': 'lower',
         'txs_lm_name': 'lower',
-        'tems_lm_n': 6,
+        'tems_lm_n': 3,
         'tems_lm_bos': False,
         'tems_lm_eos': False,
         'tems_lm_preprocess_input': 'lower',

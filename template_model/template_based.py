@@ -44,7 +44,7 @@ class Template:
         self.template_text = template_text
         self.slots = RE_FIND_SLOT_DEF.findall(self.template_text)
 
-    def fill(self, reg_data):
+    def fill(self, reg_data, triples=None):
 
         return self.template_text.format(**reg_data)
 
@@ -84,12 +84,12 @@ class JustJoinTemplate:
 
     def __init__(self):
 
-        self.template_text = '{s} {p} {o}.'
+        self.template_text = '{AGENT-1-1} {p} {PATIENT-1-1}.'
         # FIXME: adicionado apenas para fazer funcionar o len(t.template_triples)
         #    para calcular o tamanho do template
-        self.template_triples = [None]
+        self.slots = [('AGENT-1', 1), ('PATIENT-1', 1)]
 
-    def fill(self, triples, reg_f, ctx):
+    def fill(self, reg_data, triples):
 
         if len(triples) != 1:
             raise ValueError(f'This template only accepts data w/ 1 triple.'
@@ -97,16 +97,16 @@ class JustJoinTemplate:
 
         t = triples[0]
 
-        s = reg_f(t.subject, 0, 'N', ctx)
+        s = reg_data['AGENT-1-1']
         p = preprocess_so(t.predicate)
-        o = reg_f(t.object, 0, 'N', ctx)
+        o = reg_data['PATIENT-1-1']
 
         return f'{s} {p} {o}.'
 
     def align(self, triples):
 
-        return {'slot0': triples[0].subject,
-                'slot1': triples[0].object}
+        return {'AGENT-1': triples[0].subject,
+                'PATIENT-1': triples[0].object}
 
     def __repr__(self):
         return 'template {s} {p} {o}.'

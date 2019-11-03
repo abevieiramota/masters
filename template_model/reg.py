@@ -22,11 +22,8 @@ class FirstNameOthersPronounREG:
         refs_N = self.ref_db['N'].get(s, Counter())
         refs_P = self.ref_db['P'].get(s, Counter())
 
-        if not refs_N + refs_P:
-            return [self.fallback(s)]
-
-        refs_N = [v for v, n in refs_N.most_common()[::-1]]
-        refs_P = [v for v, n in refs_P.most_common()[::-1]]
+        refs_N = [v for v, n in refs_N.most_common()]
+        refs_P = [v for v, n in refs_P.most_common()]
 
         if s in ctx['seen']:
             if not refs_P:

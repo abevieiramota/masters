@@ -52,10 +52,9 @@ class TextGenerationPipeline:
         self.tems_lm_eos = tems_lm_eos
         self.tems_lm_preprocess_input = tems_lm_preprocess_input
         self.txs_lm = txs_lm
-        self.txs_lm_score = partial(txs_lm.perplexity)
-        #,
-         #                           bos=txs_lm_bos,
-          #                          eos=txs_lm_eos)
+        self.txs_lm_score = partial(txs_lm.score,
+                                    bos=txs_lm_bos,
+                                    eos=txs_lm_eos)
         self.txs_lm_bos = txs_lm_bos
         self.txs_lm_eos = txs_lm_eos
         self.txs_lm_preprocess_input = txs_lm_preprocess_input
@@ -92,7 +91,7 @@ class TextGenerationPipeline:
         reg_data = {}
         for slot_name, slot_pos in t.slots:
             reg_data[(f'{slot_name}-{slot_pos}')] = aligned_data[slot_name]
-        text = t.fill(reg_data)
+        text = t.fill(reg_data, a)
         preprocessed_text = self.tems_lm_preprocess_input(text)
 
         return self.tems_lm_score(preprocessed_text)
@@ -101,7 +100,7 @@ class TextGenerationPipeline:
 
         sorted_ts = sorted(ts,
                            key=lambda t: self.score_template(t, a),
-                           reverse=False)
+                           reverse=True)
         return sorted_ts[:self.max_tems]
 
     def score_text(self, t):
@@ -199,7 +198,7 @@ class TextGenerationPipeline:
                             for slot, ref in zip(slots, refs):
                                 reg_data[slot] = ref
 
-                            sent_text = t.fill(reg_data)
+                            sent_text = t.fill(reg_data, a)
                             sent_texts.append(sent_text)
 
                         all_sent_texts.append(sent_texts)
@@ -212,7 +211,7 @@ class TextGenerationPipeline:
                 n_dp_used += 1
 
         if texts:
-            texts = sorted(texts, key=self.score_text, reverse=False)
+            texts = sorted(texts, key=self.score_text, reverse=True)
         else:
             texts = [self.make_fallback_text(entry)]
 

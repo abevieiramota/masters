@@ -74,7 +74,7 @@ class TextGenerationPipeline:
         dps = sort_together([dps_scores, dps],
                             reverse=True)[1]
 
-        return dps#[:self.max_dp]
+        return dps
 
     def select_sentence_aggregation(self, dp, n_triples):
 
@@ -83,7 +83,7 @@ class TextGenerationPipeline:
         sas = sort_together([sas_scores, sas],
                             reverse=True)[1]
 
-        return sas#[:self.max_sa]
+        return sas
 
     def score_template(self, t, a):
 
@@ -163,6 +163,8 @@ class TextGenerationPipeline:
                     if ts:
                         sts = self.select_templates(ts, sa_part)
                         templates.append(sts)
+                    else:
+                        break
 
                 if len(templates) < len(sa):
                     continue
@@ -184,13 +186,19 @@ class TextGenerationPipeline:
                         all_refs = []
                         slots = []
 
+                        ctx['t'] = t
+
                         for slot_name, slot_pos in t.slots:
                             so = aligned_data[slot_name]
-            # FIXME: mover esse cast para int para a criação do template
-                            refs = self.reg.refer(so, ctx, self.max_refs)
                             slot = f'{slot_name}-{slot_pos}'
+                            ctx['slot'] = slot
+                            refs = self.reg.refer(so, ctx, self.max_refs)
                             slots.append(slot)
                             all_refs.append(refs)
+
+                        for a_t in a:
+                            ctx['seen'].add(a_t.subject)
+                            ctx['seen'].add(a_t.object)
 
                         for refs in product(*all_refs):
 

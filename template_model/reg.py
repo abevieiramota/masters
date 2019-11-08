@@ -2,6 +2,7 @@
 from util import preprocess_so
 from random import Random
 from collections import Counter
+from functools import partial
 
 
 class EmptyREGer:
@@ -13,27 +14,43 @@ class EmptyREGer:
 
 class FirstNameOthersPronounREG:
 
-    def __init__(self, ref_db, fallback=preprocess_so):
+    def __init__(self, ref_db, ref_lm, fallback=preprocess_so):
         self.ref_db = ref_db
         self.fallback = fallback
+        self.score_ref = partial(ref_lm.score,
+                                 bos=True,
+                                 eos=True)
 
     def refer(self, s, ctx, max_refs):
 
-        refs_N = self.ref_db['N'].get(s, Counter())
-        refs_P = self.ref_db['P'].get(s, Counter())
+        refs_1st = self.ref_db['1st'].get(s, Counter())
+        refs_2nd = self.ref_db['2nd'].get(s, Counter())
 
-        refs_N = [v for v, n in refs_N.most_common()]
-        refs_P = [v for v, n in refs_P.most_common()]
+        # why counter? well, it was that way before...
+        refs_1st = [v for v, n in refs_1st.most_common()]
+        refs_2nd = [v for v, n in refs_2nd.most_common()]
 
-        if s in ctx['seen']:
-            if not refs_P:
+        slot = '{{{}}}'.format(ctx['slot'])
+
+        def score_reg(r):
+
+            return self.score_ref(ctx['t'].template_text.replace(slot,
+                                  r.replace(' ', '_')).lower())
+
+        if s not in ctx['seen']:
+            if not refs_1st:
                 return [self.fallback(s)]
-            return refs_P[:max_refs]
+            # sort by ref_lm
+            sorted_refs = sorted(refs_1st, key=score_reg, reverse=True)
+
+            return sorted_refs[:max_refs]
         else:
-            ctx['seen'].add(s)
-            if not refs_N:
+            if not refs_2nd:
                 return [self.fallback(s)]
-            return refs_N[:max_refs]
+            # sort by ref_lm
+            sorted_refs = sorted(refs_2nd, key=score_reg, reverse=True)
+
+            return sorted_refs[:max_refs]
 
 
 class REGer:

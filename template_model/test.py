@@ -23,9 +23,9 @@ params = {
         'txs_lm_eos': False,
         'dp_scorer': 'ltr_lasso',
         'sa_scorer': 'ltr_lasso',
-        'max_dp': 3,
+        'max_dp': 2,
         'max_sa': 4,
-        'max_tems': 5,
+        'max_tems': 2,
         'max_refs': 1,
         'fallback_template': 'jjt',
         'referrer': 'abe'
@@ -33,7 +33,7 @@ params = {
 
 tgp = make_model(params, ('train', 'dev'))
 
-model_name = 'abe'
+model_name = 'abe2'
 
 # create model folder
 outdir = f"../data/models/test/{model_name}"

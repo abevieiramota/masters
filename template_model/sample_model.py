@@ -2,7 +2,7 @@
 from plain_experimento import make_model
 from gerar_base_sentence_aggregation import SentenceAggregationFeatures
 from gerar_base_discourse_planning import DiscoursePlanningFeatures
-from reading_thiagos_templates import load_dev, Entry
+from reading_thiagos_templates import load_dev, Entry, load_shared_task_test
 
 params = {
         'tems_lm_name': 'lower',
@@ -25,6 +25,6 @@ params = {
         'referrer': 'abe'
 }
 
-tgp = make_model(params, ('train',))
+tgp = make_model(params, ('train', 'dev'))
 
-dev = load_dev()
+test = load_shared_task_test()

@@ -20,6 +20,7 @@ from gerar_base_discourse_planning import DiscoursePlanningFeatures
 from random import randint
 from util import preprocess_so
 from functools import lru_cache
+from testing_make_reg_lm_db import extract_text_reg_lm
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -72,8 +73,9 @@ def load_referrer(dataset_names, referrer_name, max_ref=0):
 
     if referrer_name == 'abe':
         ref_db = load_abe_referrer_counters(dataset_names)
+        ref_lm = load_reg_lm(dataset_names)
 
-        reger = FirstNameOthersPronounREG(ref_db)
+        reger = FirstNameOthersPronounREG(ref_db, ref_lm)
 
         return reger
 
@@ -126,12 +128,58 @@ def load_abe_ref_dbs(dataset_name):
     return data
 
 
+def load_reg_lm(dataset_names):
+
+    import kenlm
+
+    lm_filename = 'reg_lm_model_{}_{}.arpa'\
+        .format(3, '_'.join(sorted(dataset_names)))
+    lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+
+    return kenlm.Model(lm_filepath)
+
+
+def make_reg_lm(dataset_names):
+
+    texts_filename = 'reg_lm_texts_{}.txt'\
+        .format('_'.join(sorted(dataset_names)))
+    texts_filepath = os.path.join(PRETRAINED_DIR, texts_filename)
+
+    if not os.path.isfile(texts_filepath):
+        dataset = list(flatten(load_dataset(ds_name)
+                               for ds_name in dataset_names))
+        texts = []
+
+        for e in dataset:
+
+            good_lexes = [l for l in e.lexes
+                          if l['comment'] == 'good']
+
+            for l in good_lexes:
+
+                t = extract_text_reg_lm(l)
+                if t:
+                    texts.append(t)
+        with open(texts_filepath, 'w', encoding='utf-8') as f:
+            for t in texts:
+                f.write(f'{t.lower()}\n')
+
+    with open(texts_filepath, 'rb') as f:
+        reg_lm_process = subprocess.run([KENLM, '-o', '3'],
+                                        stdout=subprocess.PIPE,
+                                        input=f.read())
+
+    lm_filename = 'reg_lm_model_{}_{}.arpa'\
+        .format(3, '_'.join(sorted(dataset_names)))
+    lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+
+    with open(lm_filepath, 'wb') as f:
+        f.write(reg_lm_process.stdout)
+
+
 def make_pretrained_abe_ref_dbs(dataset_name):
 
     dataset = load_dataset(dataset_name)
-
-    import spacy
-    nlp = spacy.load('en')
 
     ref_db = defaultdict(lambda: defaultdict(lambda: Counter()))
 
@@ -149,14 +197,12 @@ def make_pretrained_abe_ref_dbs(dataset_name):
             if lexicals:
                 for lex_key, lex_values in lexicals.items():
 
-                    for lex_value in lex_values:
+                    for i, lex_value in enumerate(lex_values):
 
-                        doc = nlp(lex_value)
-
-                        if len(doc) == 1 and doc[0].pos_ == 'PRON':
-                            ref_db['P'][lex_key][lex_value] += 1
+                        if i == 0:
+                            ref_db['1st'][lex_key][lex_value] += 1
                         else:
-                            ref_db['N'][lex_key][lex_value] += 1
+                            ref_db['2nd'][lex_key][lex_value] += 1
 
     filename = ABE_REFERRER_COUNTER_FILENAME.format(dataset_name)
     referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)

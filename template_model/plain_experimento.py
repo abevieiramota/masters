@@ -67,6 +67,12 @@ class TextGenerationPipeline:
         self.fallback_template = fallback_template
         self.reg = reg
 
+    def lp(self, t):
+
+        len_t = len(t)
+
+        return ((5 + len_t)**0.0)/6
+
     def select_discourse_planning(self, entry, n_triples):
 
         dps = list(permutations(entry.triples))
@@ -94,7 +100,12 @@ class TextGenerationPipeline:
         text = t.fill(reg_data, a)
         preprocessed_text = self.tems_lm_preprocess_input(text)
 
-        return self.tems_lm_score(preprocessed_text)
+        score = self.tems_lm_score(preprocessed_text)
+        n_score = score / self.lp(preprocessed_text)
+
+        #print('{}\n{}\n{}\n'.format(score, n_score, text))
+
+        return n_score
 
     def select_templates(self, ts, a):
 
@@ -107,11 +118,16 @@ class TextGenerationPipeline:
 
         preprocesssed_text = self.txs_lm_preprocess_input(t)
 
-        return self.txs_lm_score(preprocesssed_text)
+        score = self.txs_lm_score(preprocesssed_text)
+        n_score = score / self.lp(preprocesssed_text)
+
+        return n_score
 
     def make_text(self, entry):
 
-        return self.make_texts(entry)[0]
+        texts = self.make_texts(entry)
+
+        return texts[0]
 
     def make_fallback_text(self, entry):
 

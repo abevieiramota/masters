@@ -18,8 +18,14 @@ class FirstNameOthersPronounREG:
         self.ref_db = ref_db
         self.fallback = fallback
         self.score_ref = partial(ref_lm.score,
-                                 bos=True,
-                                 eos=True)
+                                 bos=False,
+                                 eos=False)
+
+    def lp(self, t):
+
+        len_t = len(t)
+
+        return ((5 + len_t)**0.1)/6
 
     def refer(self, s, ctx, max_refs):
 
@@ -34,8 +40,12 @@ class FirstNameOthersPronounREG:
 
         def score_reg(r):
 
-            return self.score_ref(ctx['t'].template_text.replace(slot,
-                                  r.replace(' ', '_')).lower())
+            text = ctx['t'].template_text.replace(slot, r.replace(' ', '_')).lower()
+
+            score = self.score_ref(text)
+            n_score = score / self.lp(text)
+
+            return n_score
 
         if s not in ctx['seen']:
             if not refs_1st:

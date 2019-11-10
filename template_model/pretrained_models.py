@@ -358,7 +358,7 @@ def make_text_selection_lm(dataset_names,
 
 # Template DB
 @lru_cache(maxsize=10)
-def load_template_db(dataset_names, ns):
+def load_template_db(dataset_names, ns=None):
 
     template_db_filename = 'template_db_{}'.format(
             '_'.join(sorted(dataset_names)))

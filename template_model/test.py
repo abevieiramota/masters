@@ -24,8 +24,8 @@ params = {
         'dp_scorer': 'ltr_lasso',
         'sa_scorer': 'ltr_lasso',
         'max_dp': 2,
-        'max_sa': 4,
-        'max_tems': 2,
+        'max_sa': 2,
+        'max_tems': 1,
         'max_refs': 1,
         'fallback_template': 'jjt',
         'referrer': 'abe'

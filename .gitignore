@@ -131,3 +131,5 @@ kenlm/
 *.npy
 *.csv
 data/models/dev*
+data/models/4na*
+data/pretrained_models*

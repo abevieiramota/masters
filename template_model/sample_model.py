@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from plain_experimento import make_model
+from plain_experimento2 import make_model
 from gerar_base_sentence_aggregation import SentenceAggregationFeatures
 from gerar_base_discourse_planning import DiscoursePlanningFeatures
 from reading_thiagos_templates import load_dev, Entry, load_shared_task_test
@@ -15,10 +15,10 @@ params = {
         'txs_lm_n': 3,
         'txs_lm_bos': False,
         'txs_lm_eos': False,
-        'dp_scorer': 'ltr_lasso',
-        'sa_scorer': 'ltr_lasso',
-        'max_dp': 2,
-        'max_sa': 2,
+        'dp_scorer': 'random',
+        'sa_scorer': 'random',
+        'max_dp': 10,
+        'max_sa': 5,
         'max_tems': 1,
         'max_refs': 1,
         'fallback_template': 'jjt',

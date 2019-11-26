@@ -5,7 +5,8 @@ from reading_thiagos_templates import (
         Entry,
         make_template_lm_texts,
         extract_templates,
-        get_lexicalizations
+        get_lexicalizations,
+        normalize_thiagos_template
 )
 import os
 import pickle
@@ -183,6 +184,8 @@ def make_pretrained_abe_ref_dbs(dataset_name):
 
     ref_db = defaultdict(lambda: defaultdict(lambda: Counter()))
 
+    w_errors = []
+
     for e in dataset:
 
         good_lexes = [l for l in e.lexes
@@ -194,15 +197,18 @@ def make_pretrained_abe_ref_dbs(dataset_name):
                                            l['template'],
                                            e.entity_map)
 
-            if lexicals:
-                for lex_key, lex_values in lexicals.items():
+            if not lexicals:
+                w_errors.append((e, l['text'], l['template']))
 
-                    for i, lex_value in enumerate(lex_values):
+            for lex_key, lex_values in lexicals.items():
+                for i, lex_value in enumerate(lex_values):
 
-                        if i == 0:
-                            ref_db['1st'][lex_key][lex_value] += 1
-                        else:
-                            ref_db['2nd'][lex_key][lex_value] += 1
+                    if i == 0:
+                        ref_db['1st'][lex_key][lex_value] += 1
+                    else:
+                        ref_db['2nd'][lex_key][lex_value] += 1
+
+    #return w_errors
 
     filename = ABE_REFERRER_COUNTER_FILENAME.format(dataset_name)
     referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
@@ -273,6 +279,7 @@ def make_template_selection_lm(dataset_names,
                                for ds_name in dataset_names))
         e_t, _ = extract_templates(dataset)
         tems_lm_texts = make_template_lm_texts(e_t)
+        tems_lm_texts = [normalize_thiagos_template(t) for t in tems_lm_texts]
         tems_lm_texts = [preprocessing(t) for t in tems_lm_texts]
 
         with open(texts_filepath, 'w', encoding='utf-8') as f:
@@ -335,7 +342,7 @@ def make_text_selection_lm(dataset_names,
     if not os.path.isfile(texts_filepath):
         dataset = list(flatten(load_dataset(ds_name)
                                for ds_name in dataset_names))
-        txs_lm_texts = [l['text']
+        txs_lm_texts = [normalize_thiagos_template(l['text'])
                         for e in dataset
                         for l in e.lexes
                         if l['comment'] == 'good']
@@ -479,6 +486,18 @@ def load_discourse_planning(dataset_names, dp_name):
     # !    e a geração dos textos for na ordem das entries no load_dev()
     if dp_name == 'gold':
         return gold_dp_scorer(dataset_names)
+
+    if dp_name == 'markov_n=3':
+
+        from discourse_planning import make_database
+        from discourse_planning import make_markov_scorer
+
+        train_a, *resto = make_database('train')
+        dev_a, *resto = make_database('dev')
+        train_dev_a = list(flatten([train_a, dev_a]))
+
+        return make_markov_scorer(train_dev_a, n=3)
+
 
 
 def ltr_lasso_dp_scorer(dataset_names):

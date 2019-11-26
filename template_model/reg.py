@@ -21,12 +21,6 @@ class FirstNameOthersPronounREG:
                                  bos=False,
                                  eos=False)
 
-    def lp(self, t):
-
-        len_t = len(t)
-
-        return ((5 + len_t)**0.1)/6
-
     def refer(self, s, ctx, max_refs):
 
         refs_1st = self.ref_db['1st'].get(s, Counter())
@@ -43,9 +37,8 @@ class FirstNameOthersPronounREG:
             text = ctx['t'].template_text.replace(slot, r.replace(' ', '_')).lower()
 
             score = self.score_ref(text)
-            n_score = score / self.lp(text)
 
-            return n_score
+            return score
 
         if s not in ctx['seen']:
             if not refs_1st:

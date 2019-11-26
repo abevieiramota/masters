@@ -2,7 +2,7 @@
 from itertools import permutations, product
 from more_itertools import partitions, sort_together, flatten
 from template_based import abstract_triples
-from functools import partial, lru_cache
+from functools import partial
 from pretrained_models import (
         load_referrer,
         load_template_selection_lm,
@@ -15,24 +15,24 @@ from pretrained_models import (
 )
 from gerar_base_sentence_aggregation import SentenceAggregationFeatures
 from gerar_base_discourse_planning import DiscoursePlanningFeatures
-from reading_thiagos_templates import Entry
+from reading_thiagos_templates import Entry, load_dataset
+from nltk.lm import Laplace
+from nltk.util import ngrams
+from nltk.lm.preprocessing import padded_everygram_pipeline, pad_both_ends
 import sys
 sys.path.append('../evaluation')
-from evaluate import preprocess_model_to_evaluate, bleu
+from evaluate import normalize_text
 
 
 class TextGenerationPipeline:
 
     def __init__(self,
+                 db,
                  template_db,
                  tems_lm,
                  tems_lm_bos,
                  tems_lm_eos,
                  tems_lm_preprocess_input,
-                 txs_lm,
-                 txs_lm_bos,
-                 txs_lm_eos,
-                 txs_lm_preprocess_input,
                  dp_scorer,
                  sa_scorer,
                  max_dp,
@@ -42,6 +42,8 @@ class TextGenerationPipeline:
                  fallback_template,
                  reg):
 
+        self.db = db
+        self.fallback_txs_lm = self.make_all_model()
         self.template_db = template_db
         self.categories = set(c for (c, _) in template_db.keys())
         self.tems_lm = tems_lm
@@ -51,13 +53,6 @@ class TextGenerationPipeline:
         self.tems_lm_bos = tems_lm_bos
         self.tems_lm_eos = tems_lm_eos
         self.tems_lm_preprocess_input = tems_lm_preprocess_input
-        self.txs_lm = txs_lm
-        self.txs_lm_score = partial(txs_lm.score,
-                                    bos=txs_lm_bos,
-                                    eos=txs_lm_eos)
-        self.txs_lm_bos = txs_lm_bos
-        self.txs_lm_eos = txs_lm_eos
-        self.txs_lm_preprocess_input = txs_lm_preprocess_input
         self.dp_scorer = dp_scorer
         self.sa_scorer = sa_scorer
         self.max_dp = max_dp
@@ -96,6 +91,8 @@ class TextGenerationPipeline:
 
         score = self.tems_lm_score(preprocessed_text)
 
+        #print('{}\n{}\n{}\n'.format(score, n_score, text))
+
         return score
 
     def select_templates(self, ts, a):
@@ -105,13 +102,53 @@ class TextGenerationPipeline:
                            reverse=True)
         return sorted_ts[:self.max_tems]
 
-    def score_text(self, t):
+    def make_all_model(self):
 
-        preprocesssed_text = self.txs_lm_preprocess_input(t)
+        texts = []
 
-        score = self.txs_lm_score(preprocesssed_text)
+        for e in self.db:
+            for l in e.lexes:
+                texts.append(l['text'])
 
-        return score
+        tokenized_texts = [normalize_text(x).split() for x in texts]
+
+        n = 3
+        train_data, padded_texts = padded_everygram_pipeline(n, tokenized_texts)
+
+        model = Laplace(n)
+        model.fit(train_data, padded_texts)
+
+        return model
+
+    def make_model(self, e):
+
+        target_triples = set(e.triples)
+
+        texts = []
+
+        for e_ in self.db:
+            if target_triples.intersection(e_.triples):
+                for l in e_.lexes:
+                    texts.append(l['text'])
+
+        tokenized_texts = [normalize_text(x).split() for x in texts]
+
+        n = 3
+        train_data, padded_texts = padded_everygram_pipeline(n, tokenized_texts)
+
+        model = Laplace(n)
+        model.fit(train_data, padded_texts)
+
+        return model
+
+    def score_text(self, t, model):
+
+        n = 3
+
+        tokenized = normalize_text(t).split()
+
+        return sum(model.logscore(trigram[-1], trigram[:-1])
+                   for trigram in ngrams(pad_both_ends(tokenized, n=n), n=n)) / len(tokenized)
 
     def make_text(self, entry):
 
@@ -122,7 +159,7 @@ class TextGenerationPipeline:
     def make_fallback_text(self, entry):
 
         ctx = {'seen': set()}
-        sent_texts = [self.fallback_template.fill([a], self.reg, ctx)
+        sent_texts = [self.fallback_template.fill([a], self.referrer, ctx)
                       for a in entry.triples]
         return ' '.join(sent_texts)
 
@@ -225,7 +262,14 @@ class TextGenerationPipeline:
                 n_dp_used += 1
 
         if texts:
-            texts = sorted(texts, key=self.score_text, reverse=True)
+            model = self.make_model(entry)
+            if len(model.vocab) == 0:
+                model = self.fallback_txs_lm
+            texts = sorted(texts,
+                           key=partial(
+                                   self.score_text,
+                                   model=model),
+                           reverse=True)
         else:
             texts = [self.make_fallback_text(entry)]
 
@@ -233,6 +277,10 @@ class TextGenerationPipeline:
 
 
 def make_model(params, train_set):
+    train = load_dataset('train')
+    dev = load_dataset('dev')
+    db = list(flatten([train, dev]))
+
     # 1. Grid Search
     # 1.1. Language Models
     # 1.1.1 Template Selection Language Model
@@ -241,12 +289,6 @@ def make_model(params, train_set):
                                          params['tems_lm_name'])
     tems_lm_preprocess_input = load_preprocessing(
             params['tems_lm_preprocess_input'])
-    # 1.1.2 Text Selection Language Model
-    txs_lm = load_text_selection_lm(train_set,
-                                    params['txs_lm_n'],
-                                    params['txs_lm_name'])
-    txs_lm_preprocess_input = load_preprocessing(
-            params['txs_lm_preprocess_input'])
     # 1.2 Template database
     template_db = load_template_db(train_set, params.get('tdb_ns', None))
     # 1.3 Referring Expression Generation
@@ -261,15 +303,12 @@ def make_model(params, train_set):
 
     # Model
     tgp = TextGenerationPipeline(
+            db,
             template_db,
             tems_lm,
             params['tems_lm_bos'],
             params['tems_lm_eos'],
             tems_lm_preprocess_input,
-            txs_lm,
-            params['txs_lm_bos'],
-            params['txs_lm_eos'],
-            txs_lm_preprocess_input,
             dp_scorer,
             sa_scorer,
             params['max_dp'],

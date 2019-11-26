@@ -16,9 +16,13 @@ RE_MATCH_TEMPLATE_KEYS_LEX = re.compile((r'(AGENT\\-\d|PATIENT\\-\d'
 RE_MATCH_TEMPLATE_KEYS = re.compile(r'(AGENT\-\d|PATIENT\-\d|BRIDGE\-\d)')
 TRANS_ESCAPE_TO_RE = str.maketrans('-', '_', '\\')
 
-RE_SPACE_BEFORE_COMMA_DOT = re.compile(r'(?<=\b)\s(?=\.|,)')
-
+RE_SPACE_BEFORE_COMMA_DOT = re.compile(r'((?<=\b)|(?<=")|(?<=,)|(?<=\)))\s(?=\.|,|:|;)')
+RE_SPACES_INSIDE_QUOTES = re.compile(r'(?<=")(\s(.*?)\s)(?=")')
+RE_APOSTROPH_S = re.compile(r'\s\"s')
+RE_APOSTROPH_PLURAL = re.compile(r'(\b.*?\b)(\s\")')
 RE_WEIRD_QUOTE_MARKS = re.compile(r'(`{1,2})|(\'{1,2})')
+# Am I making mistakes?
+RE_WEIRD_QUOTE_MARKS = re.compile(r'(`{1,2})')
 
 # {{}} -> é só para escapar as chaves
 SLOT_PLACEHOLDER = '{{{}-{}}}'
@@ -124,7 +128,11 @@ def normalize_thiagos_template(s):
 
     s = RE_SPACE_BEFORE_COMMA_DOT.sub('', s)
 
-    return RE_WEIRD_QUOTE_MARKS.sub('"', s)
+    s = RE_WEIRD_QUOTE_MARKS.sub('"', s)
+
+    s = RE_APOSTROPH_S.sub('\'s', s)
+
+    return RE_SPACES_INSIDE_QUOTES.sub(r'\g<2>', s)
 
 
 def delexicalize_triples(triples, entity_map):
@@ -357,6 +365,30 @@ def make_test_pkl():
     make_dataset_pkl('test')
 
 
+def make_test_seen_pkl():
+
+    # a base test contém as entries extraídas da base do Thiago,
+    #   mas em ordem diferente da da competição
+    # já a shared task test contém as entries na ordem utilizada na competição
+    #   o subconjunto seen são as primeiras 970 entries da base test da competição
+    # todo esse código tem como finalidade selecionar na base do Thiago
+    #   as entries do subset seen, olhando quais são seus eid e categoria
+    #   na base shared task test
+    test = load_test()
+    test_shared_task = load_shared_task_test()
+
+    test_seen = test_shared_task[:970]
+
+    eids_categories_seen = {(e.eid, e.category) for e in test_seen}
+
+    test_seen_full = [e for e in test
+                      if (e.eid, e.category) in eids_categories_seen]
+
+    with open(os.path.join(BASE_DIR,
+                           f'../evaluation/test_seen.pkl'), 'wb') as f:
+        pickle.dump(test_seen_full, f)
+
+
 def make_train_pkl():
     make_dataset_pkl('train')
 
@@ -422,6 +454,9 @@ def extract_refs_old(dataset):
 
 def lexicalization_match(s, t):
 
+    s = normalize_thiagos_template(s)
+    t = normalize_thiagos_template(t)
+
     # permite capturar entidades que aparecem mais de uma vez no template
     # ex:
     #   AGENT-1 comeu PATIENT-1 e AGENT-1 vai trabalhar.
@@ -460,6 +495,7 @@ def lexicalization_match(s, t):
     #    adiciona ^ e $ para delimitar o início e fim da string
     t_re = '^{}$'.format(RE_MATCH_TEMPLATE_KEYS_LEX.sub(replace_sop,
                                                         re.escape(t)))
+
     m = re.match(t_re, s)
 
     return m

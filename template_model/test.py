@@ -21,11 +21,11 @@ params = {
         'txs_lm_n': 3,
         'txs_lm_bos': False,
         'txs_lm_eos': False,
-        'dp_scorer': 'ltr_lasso',
+        'dp_scorer': 'markov_n=3',
         'sa_scorer': 'ltr_lasso',
-        'max_dp': 2,
-        'max_sa': 2,
-        'max_tems': 1,
+        'max_dp': 1,
+        'max_sa': 3,
+        'max_tems': 3,
         'max_refs': 1,
         'fallback_template': 'jjt',
         'referrer': 'abe'
@@ -49,8 +49,6 @@ with open(parameters_outpath, 'wb') as f:
 
 texts_outpath = (f"../data/models/test/{model_name}/"
                  f"{model_name}.txt")
-#templates_info_outpath = (f'../data/models/test/{model_name}/'
-#                          f'templates_info.pkl')
 
 test = load_shared_task_test()
 
@@ -58,17 +56,13 @@ with open(texts_outpath, 'w', encoding='utf-8') as f:
     template_infos = []
     for i, e in enumerate(test):
         text = tgp.make_text(e)
-        #template_infos.append(template_info)
         f.write(f'{text}\n')
         if i % 100 == 0:
             print(i)
 
-#with open(templates_info_outpath, 'wb') as ft:
-#    pickle.dump(template_infos, ft)
-
 preprocess_model_to_evaluate(texts_outpath, 'test')
 
-results = evaluate_system(model_name, 'test')
+results = evaluate_system(model_name, 'test', ['old-cat'])
 
 print(model_name)
 print(results)

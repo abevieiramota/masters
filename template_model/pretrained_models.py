@@ -208,8 +208,6 @@ def make_pretrained_abe_ref_dbs(dataset_name):
                     else:
                         ref_db['2nd'][lex_key][lex_value] += 1
 
-    #return w_errors
-
     filename = ABE_REFERRER_COUNTER_FILENAME.format(dataset_name)
     referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
 
@@ -497,7 +495,6 @@ def load_discourse_planning(dataset_names, dp_name):
         train_dev_a = list(flatten([train_a, dev_a]))
 
         return make_markov_scorer(train_dev_a, n=3)
-
 
 
 def ltr_lasso_dp_scorer(dataset_names):

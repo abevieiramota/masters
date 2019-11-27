@@ -23,10 +23,10 @@ params = {
         'txs_lm_eos': False,
         'dp_scorer': 'markov_n=3',
         'sa_scorer': 'ltr_lasso',
-        'max_dp': 1,
-        'max_sa': 3,
+        'max_dp': 2,
+        'max_sa': 2,
         'max_tems': 3,
-        'max_refs': 1,
+        'max_refs': 2,
         'fallback_template': 'jjt',
         'referrer': 'abe'
 }

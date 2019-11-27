@@ -15,12 +15,12 @@ params = {
         'txs_lm_n': 3,
         'txs_lm_bos': False,
         'txs_lm_eos': False,
-        'dp_scorer': 'random',
-        'sa_scorer': 'random',
-        'max_dp': 10,
-        'max_sa': 5,
-        'max_tems': 1,
-        'max_refs': 1,
+        'dp_scorer': 'markov_n=3',
+        'sa_scorer': 'ltr_lasso',
+        'max_dp': 3,
+        'max_sa': 3,
+        'max_tems': 2,
+        'max_refs': 2,
         'fallback_template': 'jjt',
         'referrer': 'abe'
 }

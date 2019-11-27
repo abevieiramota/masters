@@ -46,7 +46,7 @@ def make_database(db_name, n_min=2):
 
     dp_db = []
 
-    n_lexes_not_good = 0
+    all_lexes_not_good = []
     all_lexes_wo_sorted_triples = []
     all_lexes_w_bad_sorted_triples = []
 
@@ -64,10 +64,11 @@ def make_database(db_name, n_min=2):
                                            in lexes_wo_sorted_triples)
         all_lexes_w_bad_sorted_triples.extend((e, l) for l
                                               in lexes_w_wrong_sorted_triples)
-        n_lexes_not_good += len(lexes_not_good)
+        all_lexes_not_good.extend((e, l) for l
+                                  in lexes_not_good)
 
     return (dp_db,
-            n_lexes_not_good,
+            all_lexes_not_good,
             all_lexes_wo_sorted_triples,
             all_lexes_w_bad_sorted_triples)
 
@@ -191,7 +192,7 @@ def acc_markov(scorer, test_dp_db):
     for ts, sorteds_ts in test_dp_db:
 
         all_perms = list(permutations(ts))
-        scores = [scorer(ts_perm) for ts_perm in all_perms]
+        scores = scorer(all_perms)
         best_score_perm = sort_together([scores, all_perms],
                                         reverse=True)[1][0]
 
@@ -218,9 +219,9 @@ def pct_easy_problems(dp_db):
     return n_easy
 
 
-def evaluate(db_name):
+def evaluate():
 
-    a = make_database(db_name)[0]
+    a = make_database('test_seen')[0]
     train_a = make_database('train')[0]
     dev_a = make_database('dev')[0]
 
@@ -228,6 +229,7 @@ def evaluate(db_name):
 
     scorer_2 = make_markov_scorer(all_train, n=2)
     scorer_3 = make_markov_scorer(all_train, n=3)
+    scorer_4 = make_markov_scorer(all_train, n=4)
 
     subsets = {n: [(ts, sts) for ts, sts in a if len(ts) == n]
                for n in range(2, 8)}
@@ -240,6 +242,7 @@ def evaluate(db_name):
             acc_ltr(a),
             acc_markov(scorer_2, a),
             acc_markov(scorer_3, a),
+            acc_markov(scorer_4, a),
             len(a)
             ]
 
@@ -254,6 +257,7 @@ def evaluate(db_name):
                 acc_ltr(a_),
                 acc_markov(scorer_2, a_),
                 acc_markov(scorer_3, a_),
+                acc_markov(scorer_4, a_),
                 len(a_)
                 ]
 
@@ -269,6 +273,7 @@ def evaluate(db_name):
                                            'ltr',
                                            'markov_n=2',
                                            'markov_n=3',
+                                           'markov_n=4',
                                            'len'])
 
 

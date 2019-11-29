@@ -165,12 +165,23 @@ def make_template(sorted_triples,
 
     templates = []
 
-    template_sens = sent_tokenize(template_text)
+    # apenas tokeniza com sent_tokenize se o particionamento das triplas
+    #    indicar que há mais de uma sentença
+    #    reduz problemas com tokenização de sentenças errado
+    if len(sorted_triples) == 1:
+        template_sens = [template_text]
+    else:
+        template_sens = sent_tokenize(template_text)
+
+    if len(sorted_triples) != len(template_sens):
+        return []
 
     for template_sen, triples_sen in zip(template_sens, sorted_triples):
 
         delexicalized_triples = delexicalize_triples(triples_sen, entity_map)
         abstracted_triples = abstract_triples(triples_sen)
+
+        assert len(delexicalized_triples) == len(abstracted_triples)
 
         map_template_key_to_slot = {}
         for d, a in zip(delexicalized_triples, abstracted_triples):
@@ -181,8 +192,7 @@ def make_template(sorted_triples,
 
         keys_in_template_sen = RE_MATCH_TEMPLATE_KEYS.findall(template_sen)
 
-        # FIXME: estou ocultando erros
-        if set(keys_in_template_sen) - map_template_key_to_slot.keys():
+        if not all(k in map_template_key_to_slot for k in keys_in_template_sen):
             return []
 
         for key in keys_in_template_sen:
@@ -193,20 +203,16 @@ def make_template(sorted_triples,
 
             entity_ref_counter[key] += 1
 
-        # FIXME: não sei mais se essa checagem é necessária ou qual a importância dela
         slots = {t.subject
                  for t in abstracted_triples} | {t.object
                                                  for t in abstracted_triples}
-        all_slots_in_sen = all(slot in template_sen for slot in slots)
 
-        if all_slots_in_sen:
+        if all(slot in template_sen for slot in slots):
             # removes @ -> looks like an error
             template_sen = template_sen.replace('@', '').lower()
             t = Template(abstracted_triples, template_sen)
 
             templates.append(t)
-        else:
-            return []
 
     return templates
 

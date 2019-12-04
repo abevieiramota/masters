@@ -90,16 +90,26 @@ def make_template_lm_texts(entries_templates):
 
         for l, ts in lexes_templates:
 
-            for t, triples in zip(ts, l['sorted_triples']):
+            for tem, triples in zip(ts, l['sorted_triples']):
 
-                try:
-                    text = t.fill(triples, lambda x, pos, type_, ctx: x, None)
-                except Exception as ex:
-                    print(i)
+                if tem:
 
-                    raise ex
+                    map_slot_id = {}
+                    for t, template_t in zip(triples, tem.template_triples):
+                        map_slot_id[template_t.subject] = t.subject
+                        map_slot_id[template_t.object] = t.object
 
-                template_lm_texts.append(text)
+                    reg_data = {}
+                    try:
+                        for slot_name, slot_pos in tem.slots:
+
+                            reg_data[f'{slot_name}-{slot_pos}'] = map_slot_id[slot_name]
+
+                        text = tem.fill(reg_data)
+                    except Exception as ex:
+                        raise ex
+
+                    template_lm_texts.append(text)
 
     return template_lm_texts
 
@@ -192,8 +202,13 @@ def make_template(sorted_triples,
 
         keys_in_template_sen = RE_MATCH_TEMPLATE_KEYS.findall(template_sen)
 
+        if len(keys_in_template_sen) > 2*len(triples_sen):
+            templates.append(None)
+            continue
+
         if not all(k in map_template_key_to_slot for k in keys_in_template_sen):
-            return []
+            templates.append(None)
+            continue
 
         for key in keys_in_template_sen:
             i_occurrence = entity_ref_counter[key]
@@ -213,6 +228,8 @@ def make_template(sorted_triples,
             t = Template(abstracted_triples, template_sen)
 
             templates.append(t)
+        else:
+            templates.append(None)
 
     return templates
 

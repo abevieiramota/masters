@@ -111,13 +111,10 @@ class TextGenerationPipeline:
 
         score = self.txs_lm_score(preprocesssed_text)
 
-        return score
+        n = 5
+        a = 0.1
 
-    def make_text(self, entry):
-
-        texts = self.make_texts(entry)
-
-        return texts[0]
+        return score / ((n + len(t.split()))**a / (n + 1))
 
     def make_fallback_text(self, entry):
 
@@ -144,9 +141,10 @@ class TextGenerationPipeline:
 
         return None
 
-    def make_texts(self, entry):
+    def make_text(self, entry, return_score=False):
 
-        texts = []
+        best_text = None
+        best_score = float('-inf')
         n_triples = len(entry.triples)
         n_dp_used = 0
 
@@ -219,17 +217,25 @@ class TextGenerationPipeline:
 
                     for sents in product(*all_sent_texts):
 
-                        texts.append(' '.join(sents))
+                        generated_text = ' '.join(sents)
+                        generated_score = self.score_text(generated_text)
+
+                        if generated_score > best_score:
+                            best_score = generated_score
+                            best_text = generated_text
 
             if is_sa_used:
                 n_dp_used += 1
 
-        if texts:
-            texts = sorted(texts, key=self.score_text, reverse=True)
+        if best_text:
+            result_text = best_text
         else:
-            texts = [self.make_fallback_text(entry)]
+            result_text = self.make_fallback_text(entry)
 
-        return texts
+        if return_score:
+            return result_text, best_score
+        else:
+            return result_text
 
 
 def make_model(params, train_set):

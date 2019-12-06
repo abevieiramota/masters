@@ -49,7 +49,10 @@ class FirstNameOthersPronounREG:
             return sorted_refs[:max_refs]
         else:
             if not refs_2nd:
-                return [self.fallback(s)]
+                if not refs_1st:
+                    return [self.fallback(s)]
+                sorted_refs = sorted(refs_1st, key=score_reg, reverse=True)
+                return sorted_refs[:max_refs]
             # sort by ref_lm
             sorted_refs = sorted(refs_2nd, key=score_reg, reverse=True)
 

@@ -16,14 +16,14 @@ RE_MATCH_TEMPLATE_KEYS_LEX = re.compile((r'(AGENT\\-\d|PATIENT\\-\d'
 RE_MATCH_TEMPLATE_KEYS = re.compile(r'(AGENT\-\d|PATIENT\-\d|BRIDGE\-\d)')
 TRANS_ESCAPE_TO_RE = str.maketrans('-', '_', '\\')
 
-RE_SPACE_BEFORE_COMMA_DOT = re.compile(r'((?<=\b)|(?<=")|(?<=,)|(?<=\)))\s(?=\.|,|:|;)')
-RE_SPACES_INSIDE_QUOTES = re.compile(r'(?<=")(\s(.*?)\s)(?=")')
-RE_APOSTROPH_S = re.compile(r'\s\"s')
-RE_APOSTROPH_PLURAL = re.compile(r'(\b.*?\b)(\s\")')
-RE_WEIRD_QUOTE_MARKS = re.compile(r'(`{1,2})|(\'{1,2})')
-# Am I making mistakes?
-RE_WEIRD_QUOTE_MARKS = re.compile(r'(`{1,2})')
-
+RE_SPACE_BEFORE_COMMA_DOT = re.compile(r'\s(?=\.|,|:|;)')
+RE_SPACE_AFTER_COMMA = re.compile(r',(\S)')
+RE_SPACES_INSIDE_QUOTES = re.compile(r'"\s?(.*?)\s?"')
+RE_SPACES_INSIDE_PARENS = re.compile(r'\(\s?(.*?)\s?\)')
+RE_SPACE_BEFORE_PARENS = re.compile(r'(\S)\(')
+RE_APOSTROPH_S = re.compile(r'\s[\"\']s')
+RE_WEIRD_QUOTE_MARKS = re.compile(r'((`{1,2})|(\'{1,2}))(?!s)')
+RE_WEIRD_MINUS_SIGNS = re.compile(r'\s--\s')
 # {{}} -> é só para escapar as chaves
 SLOT_PLACEHOLDER = '{{{}-{}}}'
 
@@ -57,7 +57,7 @@ def extract_templates(dataset):
                       for l in e.lexes
                       if (
                               l['comment'] == 'good'
-                              and l['template']
+                              and l['normalized_template']
                               and l['sorted_triples']
                               and l['references']
                               )
@@ -68,7 +68,7 @@ def extract_templates(dataset):
         for l in good_lexes:
 
             ts = make_template(l['sorted_triples'],
-                               l['template'],
+                               l['normalized_template'],
                                e.entity_map)
 
             if not ts:
@@ -138,11 +138,19 @@ def normalize_thiagos_template(s):
 
     s = RE_SPACE_BEFORE_COMMA_DOT.sub('', s)
 
+    s = RE_SPACE_AFTER_COMMA.sub(r', \g<1>', s)
+
+    s = RE_SPACE_BEFORE_PARENS.sub(r'\g<1> (', s)
+
     s = RE_WEIRD_QUOTE_MARKS.sub('"', s)
 
     s = RE_APOSTROPH_S.sub('\'s', s)
 
-    return RE_SPACES_INSIDE_QUOTES.sub(r'\g<2>', s)
+    s = RE_WEIRD_MINUS_SIGNS.sub('–', s)
+
+    s = RE_SPACES_INSIDE_PARENS.sub(r'(\g<1>)', s)
+
+    return RE_SPACES_INSIDE_QUOTES.sub(r'"\g<1>"', s)
 
 
 def delexicalize_triples(triples, entity_map):
@@ -309,9 +317,10 @@ def extract_lexes(entry_elem):
                 references.append(reference)
 
         lex = {'text': lex_elem.findtext('text'),
-               'template': normalize_thiagos_template(lex_elem
-                                                      .findtext('template',
-                                                                '')),
+               'normalized_template': normalize_thiagos_template(lex_elem
+                                                                 .findtext('template',
+                                                                           '')),
+               'template': lex_elem.findtext('template', ''),
                'comment': lex_elem.attrib['comment'],
                'sorted_triples': sorted_sent_triples,
                'references': references
@@ -457,7 +466,7 @@ def extract_refs_old(dataset):
                       if l['comment'] == 'good' and e.entity_map]
         for l in good_lexes:
             lexicals = get_lexicalizations(l['text'],
-                                           l['template'],
+                                           l['normalized_template'],
                                            e.entity_map)
 
             if lexicals:
@@ -478,7 +487,6 @@ def extract_refs_old(dataset):
 def lexicalization_match(s, t):
 
     s = normalize_thiagos_template(s)
-    t = normalize_thiagos_template(t)
 
     # permite capturar entidades que aparecem mais de uma vez no template
     # ex:

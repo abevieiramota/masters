@@ -180,6 +180,10 @@ def make_reg_lm(dataset_names):
 
 def make_pretrained_abe_ref_dbs(dataset_name):
 
+    import spacy
+
+    nlp = spacy.load('en')
+
     dataset = load_dataset(dataset_name)
 
     ref_db = defaultdict(lambda: defaultdict(lambda: Counter()))
@@ -194,17 +198,22 @@ def make_pretrained_abe_ref_dbs(dataset_name):
         for l in good_lexes:
 
             lexicals = get_lexicalizations(l['text'],
-                                           l['template'],
+                                           l['normalized_template'],
                                            e.entity_map)
 
             if not lexicals:
-                w_errors.append((e, l['text'], l['template']))
+                w_errors.append((e, l['text'], l['normalized_template']))
 
             for lex_key, lex_values in lexicals.items():
                 for i, lex_value in enumerate(lex_values):
 
                     if i == 0:
-                        ref_db['1st'][lex_key][lex_value] += 1
+                        if len(lex_value.split()) == 1:
+                            d = nlp(lex_value)[0]
+                            if d.pos_ == 'NOUN':
+                                ref_db['1st'][lex_key][lex_value] += 1
+                        else:
+                            ref_db['1st'][lex_key][lex_value] += 1
                     else:
                         ref_db['2nd'][lex_key][lex_value] += 1
 
@@ -391,7 +400,7 @@ def make_template_db(dataset_names):
 
         for l, ts in lexes_templates:
 
-            for t in ts:
+            for t in [t for t in ts if t]:
 
                 template_db[(e.category, t.template_triples)].add(t)
 

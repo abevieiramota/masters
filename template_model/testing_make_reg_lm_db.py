@@ -12,7 +12,7 @@ TRANS_ESCAPE_TO_RE = str.maketrans('-', '_', '\\')
 def extract_text_reg_lm(l):
 
     s = l['text']
-    t = l['template']
+    t = l['normalized_template']
 
     # permite capturar entidades que aparecem mais de uma vez no template
     # ex:

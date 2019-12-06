@@ -20,7 +20,7 @@ params = {
         'max_dp': 3,
         'max_sa': 3,
         'max_tems': 2,
-        'max_refs': 1,
+        'max_refs': 2,
         'fallback_template': 'jjt',
         'referrer': 'abe'
 }

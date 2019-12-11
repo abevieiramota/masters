@@ -12,7 +12,7 @@ params = {
         'tems_lm_eos': False,
         'tems_lm_preprocess_input': 'lower',
         'txs_lm_preprocess_input': 'lower',
-        'txs_lm_n': 3,
+        'txs_lm_n': 6,
         'txs_lm_bos': False,
         'txs_lm_eos': False,
         'dp_scorer': 'markov_n=3',

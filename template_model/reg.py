@@ -36,6 +36,9 @@ class FirstNameOthersPronounREG:
 
             text = ctx['t'].template_text.replace(slot, r.replace(' ', '_')).lower()
 
+            if text[-1] == '.':
+                text = text[:-1]
+
             score = self.score_ref(text)
 
             return score

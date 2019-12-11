@@ -146,6 +146,8 @@ def make_reg_lm(dataset_names):
         .format('_'.join(sorted(dataset_names)))
     texts_filepath = os.path.join(PRETRAINED_DIR, texts_filename)
 
+    w_error = []
+
     if not os.path.isfile(texts_filepath):
         dataset = list(flatten(load_dataset(ds_name)
                                for ds_name in dataset_names))
@@ -160,7 +162,12 @@ def make_reg_lm(dataset_names):
 
                 t = extract_text_reg_lm(l)
                 if t:
+                    if t[-1] == '.':
+                        t = t[:-1]
                     texts.append(t)
+                else:
+                    w_error.append(l)
+
         with open(texts_filepath, 'w', encoding='utf-8') as f:
             for t in texts:
                 f.write(f'{t.lower()}\n')
@@ -176,6 +183,8 @@ def make_reg_lm(dataset_names):
 
     with open(lm_filepath, 'wb') as f:
         f.write(reg_lm_process.stdout)
+
+    return w_error
 
 
 def make_pretrained_abe_ref_dbs(dataset_name):
@@ -212,6 +221,8 @@ def make_pretrained_abe_ref_dbs(dataset_name):
                             d = nlp(lex_value)[0]
                             if d.pos_ == 'NOUN':
                                 ref_db['1st'][lex_key][lex_value] += 1
+                            else:
+                                ref_db['2nd'][lex_key][lex_value] += 1
                         else:
                             ref_db['1st'][lex_key][lex_value] += 1
                     else:
@@ -286,8 +297,9 @@ def make_template_selection_lm(dataset_names,
                                for ds_name in dataset_names))
         e_t, _ = extract_templates(dataset)
         tems_lm_texts = make_template_lm_texts(e_t)
-        tems_lm_texts = [normalize_thiagos_template(t) for t in tems_lm_texts]
         tems_lm_texts = [preprocessing(t) for t in tems_lm_texts]
+        tems_lm_texts = [t[:-1] if t[-1] == '.' else t
+                         for t in tems_lm_texts]
 
         with open(texts_filepath, 'w', encoding='utf-8') as f:
             for t in tems_lm_texts:
@@ -349,11 +361,13 @@ def make_text_selection_lm(dataset_names,
     if not os.path.isfile(texts_filepath):
         dataset = list(flatten(load_dataset(ds_name)
                                for ds_name in dataset_names))
-        txs_lm_texts = [normalize_thiagos_template(l['text'])
+        txs_lm_texts = [l['text']
                         for e in dataset
                         for l in e.lexes
-                        if l['comment'] == 'good']
+                        if l['comment'] == 'good' and l['text']]
         txs_lm_texts = [preprocessing(t) for t in txs_lm_texts]
+        txs_lm_texts = [t[:-1] if t[-1] == '.' else t
+                        for t in txs_lm_texts]
 
         with open(texts_filepath, 'w', encoding='utf-8') as f:
             for t in txs_lm_texts:
@@ -392,7 +406,7 @@ def make_template_db(dataset_names):
 
     dataset = list(flatten(load_dataset(ds_name)
                            for ds_name in dataset_names))
-    e_t, _ = extract_templates(dataset)
+    e_t, w_errors = extract_templates(dataset)
 
     template_db = defaultdict(set)
 
@@ -412,6 +426,8 @@ def make_template_db(dataset_names):
 
     with open(template_db_filepath, 'wb') as f:
         pickle.dump(template_db, f)
+
+    return w_errors
 
 
 # Common functions

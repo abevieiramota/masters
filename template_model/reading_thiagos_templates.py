@@ -16,13 +16,18 @@ RE_MATCH_TEMPLATE_KEYS_LEX = re.compile((r'(AGENT\\-\d|PATIENT\\-\d'
 RE_MATCH_TEMPLATE_KEYS = re.compile(r'(AGENT\-\d|PATIENT\-\d|BRIDGE\-\d)')
 TRANS_ESCAPE_TO_RE = str.maketrans('-', '_', '\\')
 
-RE_SPACE_BEFORE_COMMA_DOT = re.compile(r'\s(?=\.|,|:|;)')
-RE_SPACE_AFTER_COMMA = re.compile(r',(\S)')
+RE_SPACE_BEFORE_COMMA_DOT = re.compile(r'\s(?=\.|,|:|;|!)')
+RE_SPACE_AFTER_COMMA = re.compile(r',(\w)')
 RE_SPACES_INSIDE_QUOTES = re.compile(r'"\s?(.*?)\s?"')
 RE_SPACES_INSIDE_PARENS = re.compile(r'\(\s?(.*?)\s?\)')
 RE_SPACE_BEFORE_PARENS = re.compile(r'(\S)\(')
 RE_APOSTROPH_S = re.compile(r'\s[\"\']s')
-RE_WEIRD_QUOTE_MARKS = re.compile(r'((`{1,2})|(\'{1,2}))(?!s)')
+#RE_WEIRD_QUOTE_MARKS = re.compile(r'((`{1,2})|(\'{1,2}))(?!s)')
+RE_WEIRD_QUOTE_MARKS = re.compile(r'(`{1,2})(?!s)')
+RE_WEIRD_QUOTES_MARKS2 = re.compile(r'`` (.*?) \'\'')
+RE_WEIRD_QUOTES_MARKS3 = re.compile(r'\'\' (.*?) \'\'')
+RE_WEIRD_QUOTES_MARKS4 = re.compile(r'\' (.*?) \'')
+RE_WEIRD_QUOTES_MARKS5 = re.compile(r'` (.*?) \'')
 RE_WEIRD_MINUS_SIGNS = re.compile(r'\s--\s')
 # {{}} -> é só para escapar as chaves
 SLOT_PLACEHOLDER = '{{{}-{}}}'
@@ -100,14 +105,11 @@ def make_template_lm_texts(entries_templates):
                         map_slot_id[template_t.object] = t.object
 
                     reg_data = {}
-                    try:
-                        for slot_name, slot_pos in tem.slots:
+                    for slot_name, slot_pos in tem.slots:
 
-                            reg_data[f'{slot_name}-{slot_pos}'] = map_slot_id[slot_name]
+                        reg_data[f'{slot_name}-{slot_pos}'] = map_slot_id[slot_name]
 
-                        text = tem.fill(reg_data)
-                    except Exception as ex:
-                        raise ex
+                    text = tem.fill(reg_data)
 
                     template_lm_texts.append(text)
 
@@ -134,13 +136,20 @@ def extract_thiagos_refs(dataset):
 
 
 def normalize_thiagos_template(s):
-    # removes single space between an entity and a dot or a comma
 
     s = RE_SPACE_BEFORE_COMMA_DOT.sub('', s)
 
     s = RE_SPACE_AFTER_COMMA.sub(r', \g<1>', s)
 
     s = RE_SPACE_BEFORE_PARENS.sub(r'\g<1> (', s)
+
+    s = RE_WEIRD_QUOTES_MARKS2.sub(r'"\g<1>"', s)
+
+    s = RE_WEIRD_QUOTES_MARKS3.sub(r"''\g<1>''", s)
+
+    s = RE_WEIRD_QUOTES_MARKS4.sub(r"'\g<1>'", s)
+
+    s = RE_WEIRD_QUOTES_MARKS5.sub(r"'\g<1>'", s)
 
     s = RE_WEIRD_QUOTE_MARKS.sub('"', s)
 

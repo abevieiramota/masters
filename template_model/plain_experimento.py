@@ -95,8 +95,12 @@ class TextGenerationPipeline:
             reg_data[(f'{slot_name}-{slot_pos}')] = aligned_data[slot_name]
         text = t.fill(reg_data, a)
         preprocessed_text = self.tems_lm_preprocess_input(text)
+        if preprocessed_text[-1] == '.':
+            preprocessed_text = preprocessed_text[:-1]
+#        print(preprocessed_text)
 
         score = self.tems_lm_score(preprocessed_text)
+#        print(score)
 
         return score
 
@@ -114,6 +118,9 @@ class TextGenerationPipeline:
     def score_text(self, t):
 
         preprocesssed_text = self.txs_lm_preprocess_input(t)
+
+        if preprocesssed_text[-1] == '.':
+            preprocesssed_text = preprocesssed_text[:-1]
 
         score = self.txs_lm_score(preprocesssed_text)
 

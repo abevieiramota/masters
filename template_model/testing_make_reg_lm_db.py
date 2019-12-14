@@ -1,12 +1,21 @@
 # -*- coding: utf-8 -*-
 import re
 from collections import Counter
+import sys
+sys.path.append('../evaluation')
+from evaluate import normalize_text
 
 
 RE_MATCH_TEMPLATE_KEYS_LEX = re.compile((r'(AGENT\\-\d|PATIENT\\-\d'
                                          r'|BRIDGE\\-\d)'))
 RE_MATCH_TEMPLATE_KEYS = re.compile(r'(AGENT\-\d|PATIENT\-\d|BRIDGE\-\d)')
+RE_SPLIT_DOT_COMMA = re.compile(r'([\.,\'])')
 TRANS_ESCAPE_TO_RE = str.maketrans('-', '_', '\\')
+
+
+def preprocess_text(t):
+
+    return ' '.join(' '.join(RE_SPLIT_DOT_COMMA.split(t)).split())
 
 
 def extract_text_reg_lm(l):
@@ -65,7 +74,7 @@ def extract_text_reg_lm(l):
     t_re = '^{}$'.format(RE_MATCH_TEMPLATE_KEYS_LEX.sub(replace_sop_to_catch,
                                                         re.escape(t)))
     to_fill = RE_MATCH_TEMPLATE_KEYS.sub(replace_sop_to_fill,
-                                         t)
+                                         preprocess_text(t))
 
     m = re.match(t_re, s)
 

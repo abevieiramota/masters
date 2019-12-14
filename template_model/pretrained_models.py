@@ -11,7 +11,7 @@ from reading_thiagos_templates import (
 import os
 import pickle
 from collections import defaultdict, Counter, namedtuple
-from reg import REGer, EmptyREGer, FirstNameOthersPronounREG
+from reg import EmptyREGer, FirstNameOthersPronounREG
 from more_itertools import flatten
 import subprocess
 from random import shuffle
@@ -22,6 +22,14 @@ from random import randint
 from util import preprocess_so
 from functools import lru_cache
 from testing_make_reg_lm_db import extract_text_reg_lm
+import re
+
+RE_SPLIT_DOT_COMMA = re.compile(r'([\.,\'])')
+
+
+def preprocess_text(t):
+
+    return ' '.join(' '.join(RE_SPLIT_DOT_COMMA.split(t)).split())
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -38,36 +46,11 @@ RANDOM_LM = LM(lambda t, bos, eos: randint(0, 100000))
 @lru_cache(maxsize=10)
 def load_referrer(dataset_names, referrer_name, max_ref=0):
 
-    if referrer_name == 'thiagos':
-        ref_db = load_thiagos_referrer_counters(dataset_names)
-
-        reger = REGer(ref_db)
-
-        return reger
-
-    if referrer_name == 'inv_thiagos':
-        ref_db = load_thiagos_referrer_counters(dataset_names)
-
-        reger = REGer(ref_db,
-                      name_db_position=-1,
-                      pronoun_db_position=-1,
-                      description_db_position=-1,
-                      demonstrative_db_position=-1)
-
-        return reger
-
     if referrer_name == 'preprocess_so':
         class REG_:
             def refer(s, slot_pos, slot_type, ctx):
                 return preprocess_so(s)
         return REG_()
-
-    if referrer_name == 'random':
-        ref_db = load_thiagos_referrer_counters(dataset_names)
-
-        reger = REGer(ref_db, is_random=True, seed=1415)
-
-        return reger
 
     if referrer_name == 'empty':
         return EmptyREGer()
@@ -81,39 +64,15 @@ def load_referrer(dataset_names, referrer_name, max_ref=0):
         return reger
 
 
-def load_thiagos_referrer_counters(dataset_names):
-
-    ref_db = defaultdict(lambda: defaultdict(lambda: Counter()))
-    for dataset_name in dataset_names:
-        data = load_thiagos_ref_dbs(dataset_name)
-
-        for type_, entity_c in data.items():
-            for entity, c in entity_c.items():
-                ref_db[type_][entity] += c
-
-    return ref_db
-
-
-def load_thiagos_ref_dbs(dataset_name):
-
-    filename = THIAGOS_REFERRER_COUNTER_FILENAME.format(dataset_name)
-    referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
-
-    with open(referrer_db_filepath, 'rb') as f:
-        data = pickle.load(f)
-
-    return data
-
-
 def load_abe_referrer_counters(dataset_names):
 
-    ref_db = defaultdict(lambda: defaultdict(lambda: Counter()))
+    ref_db = defaultdict(lambda: defaultdict(set))
     for dataset_name in dataset_names:
         data = load_abe_ref_dbs(dataset_name)
 
         for type_, entity_c in data.items():
             for entity, c in entity_c.items():
-                ref_db[type_][entity] += c
+                ref_db[type_][entity].update(c)
 
     return ref_db
 
@@ -162,8 +121,6 @@ def make_reg_lm(dataset_names):
 
                 t = extract_text_reg_lm(l)
                 if t:
-                    if t[-1] == '.':
-                        t = t[:-1]
                     texts.append(t)
                 else:
                     w_error.append(l)
@@ -195,9 +152,10 @@ def make_pretrained_abe_ref_dbs(dataset_name):
 
     dataset = load_dataset(dataset_name)
 
-    ref_db = defaultdict(lambda: defaultdict(lambda: Counter()))
+    ref_db = defaultdict(lambda: defaultdict(set))
 
     w_errors = []
+    lex_keys = set()
 
     for e in dataset:
 
@@ -214,37 +172,29 @@ def make_pretrained_abe_ref_dbs(dataset_name):
                 w_errors.append((e, l['text'], l['normalized_template']))
 
             for lex_key, lex_values in lexicals.items():
+                lex_keys.add(lex_key)
                 for i, lex_value in enumerate(lex_values):
 
                     if i == 0:
                         if len(lex_value.split()) == 1:
                             d = nlp(lex_value)[0]
                             if d.pos_ == 'NOUN':
-                                ref_db['1st'][lex_key][lex_value] += 1
+                                ref_db['1st'][lex_key].add(lex_value)
                             else:
-                                ref_db['2nd'][lex_key][lex_value] += 1
+                                ref_db['2nd'][lex_key].add(lex_value)
                         else:
-                            ref_db['1st'][lex_key][lex_value] += 1
+                            ref_db['1st'][lex_key].add(lex_value)
                     else:
-                        ref_db['2nd'][lex_key][lex_value] += 1
+                        ref_db['2nd'][lex_key].add(lex_value)
+
+    # removes from 2nd refs the 1st
+    for lex_key in lex_keys:
+        ref_db['2nd'][lex_key] = ref_db['2nd'][lex_key] - ref_db['1st'][lex_key]
 
     filename = ABE_REFERRER_COUNTER_FILENAME.format(dataset_name)
     referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
 
     ref_db = {k: dict(v) for k, v in ref_db.items()}
-
-    with open(referrer_db_filepath, 'wb') as f:
-        pickle.dump(ref_db, f)
-
-
-def make_pretrained_thiagos_ref_dbs(dataset_name):
-
-    dataset = load_dataset(dataset_name)
-
-    filename = THIAGOS_REFERRER_COUNTER_FILENAME.format(dataset_name)
-    referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
-
-    ref_db = extract_thiagos_refs(dataset)
 
     with open(referrer_db_filepath, 'wb') as f:
         pickle.dump(ref_db, f)
@@ -298,8 +248,6 @@ def make_template_selection_lm(dataset_names,
         e_t, _ = extract_templates(dataset)
         tems_lm_texts = make_template_lm_texts(e_t)
         tems_lm_texts = [preprocessing(t) for t in tems_lm_texts]
-        tems_lm_texts = [t[:-1] if t[-1] == '.' else t
-                         for t in tems_lm_texts]
 
         with open(texts_filepath, 'w', encoding='utf-8') as f:
             for t in tems_lm_texts:
@@ -366,8 +314,7 @@ def make_text_selection_lm(dataset_names,
                         for l in e.lexes
                         if l['comment'] == 'good' and l['text']]
         txs_lm_texts = [preprocessing(t) for t in txs_lm_texts]
-        txs_lm_texts = [t[:-1] if t[-1] == '.' else t
-                        for t in txs_lm_texts]
+        txs_lm_texts = [preprocess_text(t) for t in txs_lm_texts]
 
         with open(texts_filepath, 'w', encoding='utf-8') as f:
             for t in txs_lm_texts:

@@ -6,6 +6,12 @@ import pickle
 import glob
 import xml.etree.ElementTree as ET
 import os
+RE_SPLIT_DOT_COMMA = re.compile(r'([\.,\'])')
+
+
+def preprocess_text(t):
+
+    return ' '.join(' '.join(RE_SPLIT_DOT_COMMA.split(t)).split())
 
 
 # usado na extração de expressões de referência
@@ -241,7 +247,7 @@ def make_template(sorted_triples,
 
         if all(slot in template_sen for slot in slots):
             # removes @ -> looks like an error
-            template_sen = template_sen.replace('@', '').lower()
+            template_sen = preprocess_text(template_sen.replace('@', '').lower())
             t = Template(abstracted_triples, template_sen)
 
             templates.append(t)

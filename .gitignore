@@ -133,3 +133,9 @@ kenlm/
 data/models/dev*
 data/models/4na*
 data/pretrained_models*
+/bin/
+.project
+.classpath
+.pydevproject
+.settings/org.eclipse.core.resources.prefs
+.pkl

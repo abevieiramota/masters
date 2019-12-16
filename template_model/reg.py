@@ -29,7 +29,7 @@ class FirstNameOthersPronounREG:
     def refer(self, s, ctx, max_refs):
 
         refs_1st = self.ref_db['1st'].get(s, set())
-        refs_1st.add(self.fallback(s))
+        refs_1st.add(self.fallback(s).lower())
         refs_2nd = self.ref_db['2nd'].get(s, set())
 
         slot = '{{{}}}'.format(ctx['slot'])
@@ -43,9 +43,6 @@ class FirstNameOthersPronounREG:
             text = ctx['t'].template_text.replace(slot, r.replace(' ', '_').lower())
 
             score = self.score_ref(text)
-
-            if self.to_print:
-                print(f'REG: {text}\n{r}\n{score}\n')
 
             return score
 

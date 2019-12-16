@@ -175,6 +175,8 @@ def make_pretrained_abe_ref_dbs(dataset_name):
                 lex_keys.add(lex_key)
                 for i, lex_value in enumerate(lex_values):
 
+                    lex_value = lex_value.lower()
+
                     if i == 0:
                         if len(lex_value.split()) == 1:
                             d = nlp(lex_value)[0]

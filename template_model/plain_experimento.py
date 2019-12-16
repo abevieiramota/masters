@@ -66,8 +66,8 @@ class TextGenerationPipeline:
         self.max_refs = max_refs
         self.fallback_template = fallback_template
         self.reg = reg
-        self.n = 5
-        self.a = 0.1
+        self.n = 0
+        self.a = 1
 
     def select_discourse_planning(self, entry, n_triples):
 
@@ -95,12 +95,8 @@ class TextGenerationPipeline:
             reg_data[(f'{slot_name}-{slot_pos}')] = aligned_data[slot_name]
         text = t.fill(reg_data, a)
         preprocessed_text = self.tems_lm_preprocess_input(text)
-        if preprocessed_text[-1] == '.':
-            preprocessed_text = preprocessed_text[:-1]
-#        print(preprocessed_text)
 
         score = self.tems_lm_score(preprocessed_text)
-#        print(score)
 
         return score
 
@@ -111,20 +107,20 @@ class TextGenerationPipeline:
                            reverse=True)
         return sorted_ts[:self.max_tems]
 
+    # https://arxiv.org/pdf/1609.08144.pdf
     def length_penalty(self, tokens):
 
         return (self.n + len(tokens))**self.a / (self.n + 1)
 
     def score_text(self, t):
 
-        preprocesssed_text = self.txs_lm_preprocess_input(t)
+        preprocessed_text = self.txs_lm_preprocess_input(t)
 
-        if preprocesssed_text[-1] == '.':
-            preprocesssed_text = preprocesssed_text[:-1]
+        score = self.txs_lm_score(preprocessed_text)
+        lp = self.length_penalty(t.split())
+#        print(f'TXT: {preprocessed_text}\n{score} - {lp}')
 
-        score = self.txs_lm_score(preprocesssed_text)
-
-        return score / self.length_penalty(t.split())
+        return score / lp
 
     def make_fallback_text(self, entry):
 
@@ -159,18 +155,12 @@ class TextGenerationPipeline:
         n_dp_used = 0
 
         for dp in self.select_discourse_planning(entry, n_triples):
-#            print('Order')
-#            print(dp)
-#            print()
             if n_dp_used == self.max_dp:
                 break
 
             is_sa_used = False
             n_sa_used = 0
             for sa in self.select_sentence_aggregation(dp, n_triples):
-#                print('Agg')
-#                print(sa)
-#                print()
                 if n_sa_used == self.max_sa:
                     break
 
@@ -182,10 +172,6 @@ class TextGenerationPipeline:
 
                     if ts:
                         sts = self.select_templates(ts, sa_part)
-#                        print('Templates')
-#                        for t in sts:
-#                            print(t)
-#                            print()
                         templates.append(sts)
                     else:
                         break
@@ -226,11 +212,6 @@ class TextGenerationPipeline:
 
                         for refs in product(*all_refs):
 
-#                            print('Refs')
-#                            print(t)
-#                            print(refs)
-#                            print()
-
                             reg_data = {}
                             for slot, ref in zip(slots, refs):
                                 reg_data[slot] = ref
@@ -243,10 +224,9 @@ class TextGenerationPipeline:
                     for sents in product(*all_sent_texts):
 
                         generated_text = ' '.join(sents)
+                        if generated_text[-1] != '.':
+                            generated_text = f'{generated_text} .'
                         generated_score = self.score_text(generated_text)
-#                        print('Text')
-#                        print(generated_text)
-#                        print(generated_score)
 
                         if generated_score > best_score:
                             best_score = generated_score

@@ -2,7 +2,8 @@
 from itertools import permutations, product
 from more_itertools import partitions, sort_together, flatten
 from template_based import abstract_triples
-from functools import partial, lru_cache
+from functools import partial, reduce
+from operator import mul
 from pretrained_models import (
         load_referrer,
         load_template_selection_lm,
@@ -19,6 +20,7 @@ from reading_thiagos_templates import Entry
 import sys
 sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, bleu
+from random import Random
 
 
 class TextGenerationPipeline:
@@ -35,13 +37,13 @@ class TextGenerationPipeline:
                  txs_lm_preprocess_input,
                  dp_scorer,
                  sa_scorer,
-                 max_dp,
-                 max_sa,
                  max_tems,
                  max_refs,
                  max_texts,
                  fallback_template,
-                 reg):
+                 reg,
+                 lp_n,
+                 lp_a):
 
         self.template_db = template_db
         self.categories = set(c for (c, _) in template_db.keys())
@@ -61,15 +63,15 @@ class TextGenerationPipeline:
         self.txs_lm_preprocess_input = txs_lm_preprocess_input
         self.dp_scorer = dp_scorer
         self.sa_scorer = sa_scorer
-        self.max_dp = max_dp
-        self.max_sa = max_sa
         self.max_tems = max_tems
         self.max_refs = max_refs
         self.max_texts = max_texts
         self.fallback_template = fallback_template
         self.reg = reg
-        self.n = 0
-        self.a = 0
+        self.lp_n = lp_n
+        self.lp_a = lp_a
+        self.random_tems = Random(345)
+        self.random_refs = Random(456)
 
     def select_discourse_planning(self, entry, n_triples):
 
@@ -102,17 +104,10 @@ class TextGenerationPipeline:
 
         return score
 
-    def select_templates(self, ts, a):
-
-        sorted_ts = sorted(ts,
-                           key=lambda t: self.score_template(t, a),
-                           reverse=True)
-        return sorted_ts[:self.max_tems]
-
     # https://arxiv.org/pdf/1609.08144.pdf
     def length_penalty(self, tokens):
 
-        return (self.n + len(tokens))**self.a / (self.n + 1)
+        return (self.lp_n + len(tokens))**self.lp_a / (self.lp_n + 1)
 
     def score_text(self, t):
 
@@ -120,7 +115,6 @@ class TextGenerationPipeline:
 
         score = self.txs_lm_score(preprocessed_text)
         lp = self.length_penalty(t.split())
-#        print(f'TXT: {preprocessed_text}\n{score} - {lp}')
 
         return score / lp
 
@@ -131,60 +125,47 @@ class TextGenerationPipeline:
                       for a in entry.triples]
         return ' '.join(sent_texts)
 
-    def get_templates(self, entry, triples):
+    def select_templates(self, entry, sa):
 
-        a_triples = abstract_triples(triples)
-        c_key = (entry.category, a_triples)
+        all_ts = []
 
-        if c_key in self.template_db:
-            return self.template_db[c_key]
+        for sa_part in sa:
 
-        templates = list(flatten(self.template_db.get((c, a_triples), [])
-                                 for c in self.categories))
+            a_triples = abstract_triples(sa_part)
+            c_key = (entry.category, a_triples)
 
-        if templates:
-            return templates
-        elif len(triples) == 1:
-            return [self.fallback_template]
+            if c_key in self.template_db:
+                ts = self.template_db[c_key]
+            else:
+                ts = list(flatten(self.template_db.get((c, a_triples), [])
+                                  for c in self.categories))
 
-        return None
+            if ts:
+                sorted_ts = sorted(ts,
+                                   key=lambda t: self.score_template(t, sa_part),
+                                   reverse=True)
+                all_ts.append(sorted_ts[:self.max_tems])
+            elif len(sa_part) == 1:
+                all_ts.append([self.fallback_template])
+            else:
+                return []
+
+        return product(*all_ts)
 
     def make_text(self, entry):
 
         best_text = None
         best_score = float('-inf')
         n_triples = len(entry.triples)
-        n_dp_used = 0
+        n_texts = 0
 
+#        b = time.time()
         for dp in self.select_discourse_planning(entry, n_triples):
-            if n_dp_used == self.max_dp:
-                break
-
-            is_sa_used = False
-            n_sa_used = 0
+#            print(time.time() - b)
+#            b = time.time()
             for sa in self.select_sentence_aggregation(dp, n_triples):
-                if n_sa_used == self.max_sa:
-                    break
-
-                templates = []
-
-                for sa_part in sa:
-
-                    ts = self.get_templates(entry, sa_part)
-
-                    if ts:
-                        sts = self.select_templates(ts, sa_part)
-                        templates.append(sts)
-                    else:
-                        break
-
-                if len(templates) < len(sa):
-                    continue
-
-                n_sa_used += 1
-                is_sa_used = True
-
-                for ts in product(*templates):
+#                print(time.time() - b)
+                for ts in self.select_templates(entry, sa):
 
                     ctx = {'seen': set()}
 
@@ -228,19 +209,22 @@ class TextGenerationPipeline:
                         generated_text = ' '.join(sents)
                         if generated_text[-1] != '.':
                             generated_text = f'{generated_text} .'
+                        n_texts += 1
                         generated_score = self.score_text(generated_text)
+
+#                        print(f'{generated_text}\n{generated_score}\n')
 
                         if generated_score > best_score:
                             best_score = generated_score
                             best_text = generated_text
 
-            if is_sa_used:
-                n_dp_used += 1
+                        if n_texts >= self.max_texts:
+                            return best_text
 
-        if best_text:
-            result_text = best_text
-        else:
-            result_text = self.make_fallback_text(entry)
+        if not best_text:
+            best_text = self.make_fallback_text(entry)
+
+        return best_text
 
 
 def make_model(params, train_set):
@@ -285,12 +269,12 @@ def make_model(params, train_set):
             txs_lm_preprocess_input,
             dp_scorer,
             sa_scorer,
-            params['max_dp'],
-            params['max_sa'],
             params['max_tems'],
             params['max_refs'],
             params['max_texts'],
             fallback_template,
-            reg)
+            reg,
+            params['lp_n'],
+            params['lp_a'])
 
     return tgp

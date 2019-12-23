@@ -22,7 +22,7 @@ class FirstNameOthersPronounREG:
         self.ref_db = ref_db
         self.fallback = fallback
         self.score_ref = partial(ref_lm.score,
-                                 bos=True,
+                                 bos=False,
                                  eos=False)
         self.to_print = to_print
 

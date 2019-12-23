@@ -33,46 +33,6 @@ def extract_orders(e):
             lexes_w_wrong_sorted_triples)
 
 
-# para cada entrada do dataset irá analisar as lexes e classificar em 4 grupos
-#   lexes com comment != good
-#   lexes sem sorted_triples
-#   lexes com sorted triples, mas em quantidade inferior ao número de triplas
-#   lexes com sorted triples e com quantidade igual ao número de triplas
-# não são consideradas entries com número de triplas = 1, visto não
-#   haver necessidade de ordenar quando há apenas uma tripla
-def make_database(db_name, n_min=2):
-
-    db = load_dataset(db_name)
-
-    dp_db = []
-
-    all_lexes_not_good = []
-    all_lexes_wo_sorted_triples = []
-    all_lexes_w_bad_sorted_triples = []
-
-    for e in (e for e in db if len(e.triples) >= n_min):
-
-        (orders,
-         lexes_not_good,
-         lexes_wo_sorted_triples,
-         lexes_w_wrong_sorted_triples) = extract_orders(e)
-
-        if orders:
-            dp_db.append((e.triples, orders))
-
-        all_lexes_wo_sorted_triples.extend((e, l) for l
-                                           in lexes_wo_sorted_triples)
-        all_lexes_w_bad_sorted_triples.extend((e, l) for l
-                                              in lexes_w_wrong_sorted_triples)
-        all_lexes_not_good.extend((e, l) for l
-                                  in lexes_not_good)
-
-    return (dp_db,
-            all_lexes_not_good,
-            all_lexes_wo_sorted_triples,
-            all_lexes_w_bad_sorted_triples)
-
-
 def acc_same_order_as_triples(dp_db):
 
     tp = sum(1 for ts, sorteds_ts in dp_db
@@ -148,38 +108,6 @@ def acc_ltr(test_dp_db):
             tp += 1
 
     return tp / len(test_dp_db)
-
-
-def make_markov_scorer(train_dp_db, n=3):
-
-    from nltk.lm import Laplace
-    from nltk.util import ngrams
-    from nltk.lm.preprocessing import padded_everygram_pipeline, pad_both_ends
-
-    train_texts = [[t.predicate for t in st]
-                   for st, sts in train_dp_db for st in sts]
-
-    train_data, padded_texts = padded_everygram_pipeline(n, train_texts)
-
-    model = Laplace(n)
-    model.fit(train_data, padded_texts)
-
-    def scorer(triples_list, n_triples=None):
-
-        scores = []
-
-        for triples in triples_list:
-
-            preds = [t.predicate for t in triples]
-
-            score = sum(model.logscore(trigram[-1], trigram[:-1])
-                        for trigram in ngrams(pad_both_ends(preds, n=n), n=n)) / len(preds)
-
-            scores.append(score)
-
-        return scores
-
-    return scorer
 
 
 def acc_markov(scorer, test_dp_db):

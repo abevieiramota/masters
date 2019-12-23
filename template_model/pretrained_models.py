@@ -16,6 +16,7 @@ from more_itertools import flatten
 import subprocess
 from random import shuffle
 from template_based import JustJoinTemplate
+from discourse_planning import extract_orders
 from gerar_base_sentence_aggregation import SentenceAggregationFeatures
 from gerar_base_discourse_planning import DiscoursePlanningFeatures
 from random import randint
@@ -463,16 +464,55 @@ def load_discourse_planning(dataset_names, dp_name):
     if dp_name == 'gold':
         return gold_dp_scorer(dataset_names)
 
-    if dp_name == 'markov_n=3':
+    if dp_name == 'markov_n=2':
 
-        from discourse_planning import make_database
-        from discourse_planning import make_markov_scorer
+        import kenlm
 
-        train_a, *resto = make_database('train')
-        dev_a, *resto = make_database('dev')
-        train_dev_a = list(flatten([train_a, dev_a]))
+        lm_filename = 'dp_lm_model_2_{}.arpa'.format('_'.join(sorted(dataset_names)))
+        lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
 
-        return make_markov_scorer(train_dev_a, n=3)
+        model = kenlm.Model(lm_filepath)
+
+        def scorer(triples_list, n_triples=None):
+
+            scores = []
+            for triples in triples_list:
+                pred_text = ' '.join(t.predicate.replace(' ', '_') for t in triples)
+                score = model.score(pred_text)
+                scores.append(score)
+
+            return scores
+        return scorer
+
+
+def make_dp_lm(db_names, n=2):
+
+    db = flatten(load_dataset(db_name) for db_name in db_names)
+
+    orders = []
+
+    for e in (e for e in db if len(e.triples) >= 2):
+
+        order, *resto = extract_orders(e)
+        orders.extend(order)
+
+    dp_lm_texts_filename= 'txs_dp_texts_{}.txt'.format('_'.join(sorted(db_names)))
+    dp_lm_texts_filepath = os.path.join(PRETRAINED_DIR, dp_lm_texts_filename)
+
+    with open(dp_lm_texts_filepath, 'w') as f:
+        for order in orders:
+            f.write('{}\n'.format(' '.join(t.predicate.replace(' ', '_')
+                                           for t in order)))
+
+    with open(dp_lm_texts_filepath, 'rb') as f:
+        txs_lm_process = subprocess.run([KENLM, '-o', str(n)],
+                                        stdout=subprocess.PIPE,
+                                        input=f.read())
+
+    lm_filename = 'dp_lm_model_{}_{}.arpa'.format(n, '_'.join(sorted(db_names)))
+    lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+    with open(lm_filepath, 'wb') as f:
+        f.write(txs_lm_process.stdout)
 
 
 def ltr_lasso_dp_scorer(dataset_names):
@@ -582,7 +622,6 @@ def ltr_lasso_sa_scorer(dataset_names):
 
         return scores
 
-    #return score_one_sentence_per_triple_best
     return scorer
 
 

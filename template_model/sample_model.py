@@ -8,40 +8,26 @@ params = {
         'tems_lm_name': 'lower',
         'txs_lm_name': 'lower',
         'tems_lm_n': 3,
-        'tems_lm_bos': True,
+        'tems_lm_bos': False,
         'tems_lm_eos': False,
         'tems_lm_preprocess_input': 'lower',
         'txs_lm_preprocess_input': 'lower',
-        'txs_lm_n': 3,
-        'txs_lm_bos': True,
+        'txs_lm_n': 6,
+        'txs_lm_bos': False,
         'txs_lm_eos': False,
-        'dp_scorer': 'markov_n=3',
+        'dp_scorer': 'markov_n=2',
         'sa_scorer': 'ltr_lasso',
-        'max_dp': 3,
-        'max_sa': 3,
-        'max_tems': 2,
-        'max_refs': 1,
+        'max_tems': 5,
+        'max_refs': 5,
         'fallback_template': 'jjt',
-        'referrer': 'abe'
+        'referrer': 'abe',
+        'referrer_lm_n': 3,
+        'max_texts': 10,
+        'lp_a': 0,
+        'lp_n': 0
 }
 
 tgp = make_model(params, ('train', 'dev'))
 
-#test = load_shared_task_test()
-test = load_test()
-
-from random import Random
-
-r = Random(100)
-
-def get():
-
-    i = r.randint(0, 1800)
-    print(f'i = {i}\n')
-    hyp = tgp.make_text(test[i])
-    refs = [l['text'] for l in test[i].lexes]
-    for t in test[i].triples:
-        print(t)
-    print(f'\n{hyp}\n')
-    for ref in refs:
-        print(f'{ref}')
+test = load_shared_task_test()
+#test = load_test()

@@ -39,6 +39,7 @@ class TextGenerationPipeline:
                  max_sa,
                  max_tems,
                  max_refs,
+                 max_texts,
                  fallback_template,
                  reg):
 
@@ -64,10 +65,11 @@ class TextGenerationPipeline:
         self.max_sa = max_sa
         self.max_tems = max_tems
         self.max_refs = max_refs
+        self.max_texts = max_texts
         self.fallback_template = fallback_template
         self.reg = reg
         self.n = 0
-        self.a = 1
+        self.a = 0
 
     def select_discourse_planning(self, entry, n_triples):
 
@@ -147,7 +149,7 @@ class TextGenerationPipeline:
 
         return None
 
-    def make_text(self, entry, return_score=False):
+    def make_text(self, entry):
 
         best_text = None
         best_score = float('-inf')
@@ -240,11 +242,6 @@ class TextGenerationPipeline:
         else:
             result_text = self.make_fallback_text(entry)
 
-        if return_score:
-            return result_text, best_score
-        else:
-            return result_text
-
 
 def make_model(params, train_set):
     # 1. Grid Search
@@ -264,7 +261,9 @@ def make_model(params, train_set):
     # 1.2 Template database
     template_db = load_template_db(train_set, params.get('tdb_ns', None))
     # 1.3 Referring Expression Generation
-    reg = load_referrer(train_set, params['referrer'])
+    reg = load_referrer(train_set,
+                        params['referrer'],
+                        params['referrer_lm_n'])
     # 1.4 Discourse Planning
     dp_scorer = load_discourse_planning(train_set, params['dp_scorer'])
     # 1.5 Sentence Aggregation
@@ -290,6 +289,7 @@ def make_model(params, train_set):
             params['max_sa'],
             params['max_tems'],
             params['max_refs'],
+            params['max_texts'],
             fallback_template,
             reg)
 

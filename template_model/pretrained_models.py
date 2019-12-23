@@ -44,7 +44,7 @@ RANDOM_LM = LM(lambda t, bos, eos: randint(0, 100000))
 
 # Referring Expression Generation
 @lru_cache(maxsize=10)
-def load_referrer(dataset_names, referrer_name, max_ref=0):
+def load_referrer(dataset_names, referrer_name, reg_lm_n=None):
 
     if referrer_name == 'preprocess_so':
         class REG_:
@@ -57,7 +57,7 @@ def load_referrer(dataset_names, referrer_name, max_ref=0):
 
     if referrer_name == 'abe':
         ref_db = load_abe_referrer_counters(dataset_names)
-        ref_lm = load_reg_lm(dataset_names)
+        ref_lm = load_reg_lm(dataset_names, reg_lm_n)
 
         reger = FirstNameOthersPronounREG(ref_db, ref_lm)
 
@@ -88,18 +88,18 @@ def load_abe_ref_dbs(dataset_name):
     return data
 
 
-def load_reg_lm(dataset_names):
+def load_reg_lm(dataset_names, reg_lm_n):
 
     import kenlm
 
     lm_filename = 'reg_lm_model_{}_{}.arpa'\
-        .format(3, '_'.join(sorted(dataset_names)))
+        .format(reg_lm_n, '_'.join(sorted(dataset_names)))
     lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
 
     return kenlm.Model(lm_filepath)
 
 
-def make_reg_lm(dataset_names):
+def make_reg_lm(dataset_names, n):
 
     texts_filename = 'reg_lm_texts_{}.txt'\
         .format('_'.join(sorted(dataset_names)))
@@ -130,12 +130,12 @@ def make_reg_lm(dataset_names):
                 f.write(f'{t.lower()}\n')
 
     with open(texts_filepath, 'rb') as f:
-        reg_lm_process = subprocess.run([KENLM, '-o', '3'],
+        reg_lm_process = subprocess.run([KENLM, '-o', str(n)],
                                         stdout=subprocess.PIPE,
                                         input=f.read())
 
     lm_filename = 'reg_lm_model_{}_{}.arpa'\
-        .format(3, '_'.join(sorted(dataset_names)))
+        .format(n, '_'.join(sorted(dataset_names)))
     lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
 
     with open(lm_filepath, 'wb') as f:
@@ -146,9 +146,9 @@ def make_reg_lm(dataset_names):
 
 def make_pretrained_abe_ref_dbs(dataset_name):
 
-    import spacy
-
-    nlp = spacy.load('en')
+#    import spacy
+#
+#    nlp = spacy.load('en')
 
     dataset = load_dataset(dataset_name)
 
@@ -177,15 +177,19 @@ def make_pretrained_abe_ref_dbs(dataset_name):
 
                     lex_value = lex_value.lower()
 
+#                    if i == 0:
+#                        if len(lex_value.split()) == 1:
+#                            d = nlp(lex_value)[0]
+#                            if d.pos_ == 'NOUN':
+#                                ref_db['1st'][lex_key].add(lex_value)
+#                            else:
+#                                ref_db['2nd'][lex_key].add(lex_value)
+#                        else:
+#                            ref_db['1st'][lex_key].add(lex_value)
+#                    else:
+#                        ref_db['2nd'][lex_key].add(lex_value)
                     if i == 0:
-                        if len(lex_value.split()) == 1:
-                            d = nlp(lex_value)[0]
-                            if d.pos_ == 'NOUN':
-                                ref_db['1st'][lex_key].add(lex_value)
-                            else:
-                                ref_db['2nd'][lex_key].add(lex_value)
-                        else:
-                            ref_db['1st'][lex_key].add(lex_value)
+                        ref_db['1st'][lex_key].add(lex_value)
                     else:
                         ref_db['2nd'][lex_key].add(lex_value)
 

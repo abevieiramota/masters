@@ -141,4 +141,4 @@ data/pretrained_models*
 *.pkl
 data/models/**/*
 .pkl
-evaluation/test.pkl
+evaluation\test.pkl

@@ -138,4 +138,4 @@ data/pretrained_models*
 .classpath
 .pydevproject
 .settings/org.eclipse.core.resources.prefs
-.pkl
+*.pkl

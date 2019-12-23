@@ -140,3 +140,4 @@ data/pretrained_models*
 .settings/org.eclipse.core.resources.prefs
 *.pkl
 data/models/**/*
+.pkl

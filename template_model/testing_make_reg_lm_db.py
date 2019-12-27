@@ -21,7 +21,7 @@ def preprocess_text(t):
 def extract_text_reg_lm(l):
 
     s = l['text']
-    t = l['normalized_template']
+    t = l['template']
 
     # permite capturar entidades que aparecem mais de uma vez no template
     # ex:

@@ -24,11 +24,11 @@ TRANS_ESCAPE_TO_RE = str.maketrans('-', '_', '\\')
 
 RE_SPACE_BEFORE_COMMA_DOT = re.compile(r'\s(?=\.|,|:|;|!)')
 RE_SPACE_AFTER_COMMA = re.compile(r',(\w)')
-RE_SPACES_INSIDE_QUOTES = re.compile(r'"\s?(.*?)\s?"')
+# RE_SPACES_INSIDE_QUOTES = re.compile(r'"\s?(.*?)\s?"')
+RE_SPACES_INSIDE_QUOTES = re.compile(r'(?<=")(\s(.*?)\s)(?=")')
 RE_SPACES_INSIDE_PARENS = re.compile(r'\(\s?(.*?)\s?\)')
 RE_SPACE_BEFORE_PARENS = re.compile(r'(\S)\(')
 RE_APOSTROPH_S = re.compile(r'\s[\"\']s')
-#RE_WEIRD_QUOTE_MARKS = re.compile(r'((`{1,2})|(\'{1,2}))(?!s)')
 RE_WEIRD_QUOTE_MARKS = re.compile(r'(`{1,2})(?!s)')
 RE_WEIRD_QUOTES_MARKS2 = re.compile(r'`` (.*?) \'\'')
 RE_WEIRD_QUOTES_MARKS3 = re.compile(r'\'\' (.*?) \'\'')
@@ -68,7 +68,7 @@ def extract_templates(dataset):
                       for l in e.lexes
                       if (
                               l['comment'] == 'good'
-                              and l['normalized_template']
+                              and l['template']
                               and l['sorted_triples']
                               and l['references']
                               )
@@ -79,7 +79,7 @@ def extract_templates(dataset):
         for l in good_lexes:
 
             ts = make_template(l['sorted_triples'],
-                               l['normalized_template'],
+                               l['template'],
                                e.entity_map)
 
             if not ts:
@@ -113,7 +113,7 @@ def make_template_lm_texts(entries_templates):
                     reg_data = {}
                     for slot_name, slot_pos in tem.slots:
 
-                        reg_data[f'{slot_name}-{slot_pos}'] = map_slot_id[slot_name]
+                        reg_data[f'{slot_name}-{slot_pos}'] = map_slot_id[slot_name].replace(' ', '_')
 
                     text = tem.fill(reg_data)
 
@@ -122,50 +122,43 @@ def make_template_lm_texts(entries_templates):
     return template_lm_texts
 
 
-def extract_thiagos_refs(dataset):
+# def normalize_thiagos_template(s):
 
-    refs = defaultdict(lambda: defaultdict(lambda: Counter()))
+#     s = RE_SPACE_BEFORE_COMMA_DOT.sub('', s)
 
-    for e in dataset:
+#     s = RE_SPACE_AFTER_COMMA.sub(r', \g<1>', s)
 
-        for l in e.lexes:
+#     s = RE_SPACE_BEFORE_PARENS.sub(r'\g<1> (', s)
 
-            if l['references']:
+#     s = RE_WEIRD_QUOTES_MARKS2.sub(r'"\g<1>"', s)
 
-                for r in l['references']:
+#     s = RE_WEIRD_QUOTES_MARKS3.sub(r"''\g<1>''", s)
 
-                    type_key = MAP_REF_TYPE_TO_KEY[r['type']]
+#     s = RE_WEIRD_QUOTES_MARKS4.sub(r"'\g<1>'", s)
 
-                    refs[type_key][r['entity']][r['ref']] += 1
+#     s = RE_WEIRD_QUOTES_MARKS5.sub(r"'\g<1>'", s)
 
-    return {k: dict(v) for k, v in refs.items()}
+#     s = RE_WEIRD_QUOTE_MARKS.sub('"', s)
+
+#     s = RE_APOSTROPH_S.sub('\'s', s)
+
+#     s = RE_WEIRD_MINUS_SIGNS.sub('–', s)
+
+#     s = RE_SPACES_INSIDE_PARENS.sub(r'(\g<1>)', s)
+
+#     return RE_SPACES_INSIDE_QUOTES.sub(r'"\g<1>"', s)
 
 
 def normalize_thiagos_template(s):
+    # removes single space between an entity and a dot or a comma
 
     s = RE_SPACE_BEFORE_COMMA_DOT.sub('', s)
-
-    s = RE_SPACE_AFTER_COMMA.sub(r', \g<1>', s)
-
-    s = RE_SPACE_BEFORE_PARENS.sub(r'\g<1> (', s)
-
-    s = RE_WEIRD_QUOTES_MARKS2.sub(r'"\g<1>"', s)
-
-    s = RE_WEIRD_QUOTES_MARKS3.sub(r"''\g<1>''", s)
-
-    s = RE_WEIRD_QUOTES_MARKS4.sub(r"'\g<1>'", s)
-
-    s = RE_WEIRD_QUOTES_MARKS5.sub(r"'\g<1>'", s)
 
     s = RE_WEIRD_QUOTE_MARKS.sub('"', s)
 
     s = RE_APOSTROPH_S.sub('\'s', s)
 
-    s = RE_WEIRD_MINUS_SIGNS.sub('–', s)
-
-    s = RE_SPACES_INSIDE_PARENS.sub(r'(\g<1>)', s)
-
-    return RE_SPACES_INSIDE_QUOTES.sub(r'"\g<1>"', s)
+    return RE_SPACES_INSIDE_QUOTES.sub(r'\g<2>', s)
 
 
 def delexicalize_triples(triples, entity_map):
@@ -332,10 +325,7 @@ def extract_lexes(entry_elem):
                 references.append(reference)
 
         lex = {'text': lex_elem.findtext('text'),
-               'normalized_template': normalize_thiagos_template(lex_elem
-                                                                 .findtext('template',
-                                                                           '')),
-               'template': lex_elem.findtext('template', ''),
+               'template': normalize_thiagos_template(lex_elem.findtext('template', '')),
                'comment': lex_elem.attrib['comment'],
                'sorted_triples': sorted_sent_triples,
                'references': references
@@ -345,6 +335,15 @@ def extract_lexes(entry_elem):
 
     return tuple(lexes)
 
+
+def extract_shared_task_lexes(entry_elem):
+
+   lexes = []
+
+   for lex_elem in entry_elem.findall('lex'):
+      lex = {'text': lex_elem.text}
+      lexes.append(lex)
+   return tuple(lexes)
 
 def load_dataset(dataset_name):
 
@@ -457,46 +456,13 @@ def make_shared_task_test_pkl():
         eid = entry_elem.attrib['eid']
         category = entry_elem.attrib['category']
         triples = extract_triples(entry_elem)
+        lexes = extract_shared_task_lexes(entry_elem)
 
-        entries.append(Entry(eid, category, triples, None, None))
+        entries.append(Entry(eid, category, triples, lexes, None))
 
     with open(os.path.join(BASE_DIR,
                            '../evaluation/test_shared_task.pkl'), 'wb') as f:
         pickle.dump(entries, f)
-
-
-# Legado
-
-def extract_refs_old(dataset):
-
-    import spacy
-
-    nlp = spacy.load('en_core_web_lg')
-
-    name_db = defaultdict(lambda: Counter())
-    pronoun_db = defaultdict(lambda: Counter())
-
-    for e in dataset:
-        good_lexes = [l for l in e.lexes
-                      if l['comment'] == 'good' and e.entity_map]
-        for l in good_lexes:
-            lexicals = get_lexicalizations(l['text'],
-                                           l['normalized_template'],
-                                           e.entity_map)
-
-            if lexicals:
-                for lex_key, lex_values in lexicals.items():
-                    for lex_value in lex_values:
-
-                        doc = nlp(lex_value)
-
-                        if len(doc) == 1 and doc[0].pos_ == 'PRON':
-
-                            pronoun_db[lex_key][lex_value] += 1
-                        else:
-                            name_db[lex_key][lex_value] += 1
-
-    return dict(name_db), dict(pronoun_db)
 
 
 def lexicalization_match(s, t):
@@ -559,6 +525,6 @@ def get_lexicalizations(s, t, entity_map):
             entity_label = g_name[:-2].replace('_', '-')
             lex_key = entity_map[entity_label]
 
-            lexicals[lex_key].append(v.lower())
+            lexicals[lex_key].append(v)
 
     return dict(lexicals)

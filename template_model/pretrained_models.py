@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from reading_thiagos_templates import (
-        extract_thiagos_refs,
         load_dataset,
         Entry,
         make_template_lm_texts,
@@ -128,7 +127,7 @@ def make_reg_lm(dataset_names, n):
 
         with open(texts_filepath, 'w', encoding='utf-8') as f:
             for t in texts:
-                f.write(f'{t.lower()}\n')
+                f.write(f'{t}\n')
 
     with open(texts_filepath, 'rb') as f:
         reg_lm_process = subprocess.run([KENLM, '-o', str(n)],
@@ -147,10 +146,6 @@ def make_reg_lm(dataset_names, n):
 
 def make_pretrained_abe_ref_dbs(dataset_name):
 
-#    import spacy
-#
-#    nlp = spacy.load('en')
-
     dataset = load_dataset(dataset_name)
 
     ref_db = defaultdict(lambda: defaultdict(set))
@@ -166,33 +161,21 @@ def make_pretrained_abe_ref_dbs(dataset_name):
         for l in good_lexes:
 
             lexicals = get_lexicalizations(l['text'],
-                                           l['normalized_template'],
+                                           l['template'],
                                            e.entity_map)
 
             if not lexicals:
-                w_errors.append((e, l['text'], l['normalized_template']))
+                w_errors.append((e, l['text'], l['template']))
 
             for lex_key, lex_values in lexicals.items():
                 lex_keys.add(lex_key)
                 for i, lex_value in enumerate(lex_values):
 
-                    lex_value = lex_value.lower()
-
-#                    if i == 0:
-#                        if len(lex_value.split()) == 1:
-#                            d = nlp(lex_value)[0]
-#                            if d.pos_ == 'NOUN':
-#                                ref_db['1st'][lex_key].add(lex_value)
-#                            else:
-#                                ref_db['2nd'][lex_key].add(lex_value)
-#                        else:
-#                            ref_db['1st'][lex_key].add(lex_value)
-#                    else:
-#                        ref_db['2nd'][lex_key].add(lex_value)
                     if i == 0:
                         ref_db['1st'][lex_key].add(lex_value)
                     else:
                         ref_db['2nd'][lex_key].add(lex_value)
+
 
     # removes from 2nd refs the 1st
     for lex_key in lex_keys:
@@ -243,8 +226,7 @@ def load_template_selection_lm(dataset_names, n, lm_name):
 
 def make_template_selection_lm(dataset_names,
                                n,
-                               lm_name,
-                               preprocessing):
+                               lm_name):
 
     texts_filename = 'tems_lm_texts_{}_{}.txt'\
         .format(lm_name, '_'.join(sorted(dataset_names)))
@@ -254,7 +236,7 @@ def make_template_selection_lm(dataset_names,
                                for ds_name in dataset_names))
         e_t, _ = extract_templates(dataset)
         tems_lm_texts = make_template_lm_texts(e_t)
-        tems_lm_texts = [preprocessing(t) for t in tems_lm_texts]
+        tems_lm_texts = [normalize_thiagos_template(t) for t in tems_lm_texts]
 
         with open(texts_filepath, 'w', encoding='utf-8') as f:
             for t in tems_lm_texts:
@@ -307,8 +289,7 @@ def load_text_selection_lm(dataset_names, n, lm_name):
 
 def make_text_selection_lm(dataset_names,
                            n,
-                           lm_name,
-                           preprocessing):
+                           lm_name):
 
     texts_filename = 'txs_lm_texts_{}_{}.txt'\
         .format(lm_name, '_'.join(sorted(dataset_names)))
@@ -316,11 +297,10 @@ def make_text_selection_lm(dataset_names,
     if not os.path.isfile(texts_filepath):
         dataset = list(flatten(load_dataset(ds_name)
                                for ds_name in dataset_names))
-        txs_lm_texts = [l['text']
+        txs_lm_texts = [normalize_thiagos_template(l['text'].lower())
                         for e in dataset
                         for l in e.lexes
                         if l['comment'] == 'good' and l['text']]
-        txs_lm_texts = [preprocessing(t) for t in txs_lm_texts]
         txs_lm_texts = [preprocess_text(t) for t in txs_lm_texts]
 
         with open(texts_filepath, 'w', encoding='utf-8') as f:
@@ -416,54 +396,11 @@ def random_dp_scorer(dps, n_triples):
     return get_random_scores(len(dps))
 
 
-def gold_dp_scorer(dataset_names):
-
-    dev = load_dataset('dev')
-    i = 0
-
-    def gold_dp_scorer_(dps, n_triples):
-
-        nonlocal i
-
-        sts = []
-        for l in dev[i].lexes:
-            st = l['sorted_triples']
-            if st:
-                sts.append(tuple(flatten(st)))
-
-        scores = []
-        for dp in dps:
-            if dp in sts:
-                scores.append(1)
-            else:
-                scores.append(0)
-        i = i + 1
-
-        return scores
-
-    return gold_dp_scorer_
-
-
 @lru_cache(maxsize=10)
 def load_discourse_planning(dataset_names, dp_name):
 
     if dp_name == 'random':
         return random_dp_scorer
-    if dp_name == 'ltr_lasso':
-        return ltr_lasso_dp_scorer(dataset_names)
-    if dp_name == 'inv_ltr_lasso':
-        scorer = ltr_lasso_dp_scorer(dataset_names)
-
-        def inv_scorer(*args):
-            scores = scorer(*args)
-            return [-1*x for x in scores]
-
-        return inv_scorer
-    # ! atualmente só funciona se o target for dev
-    # !    e a geração dos textos for na ordem das entries no load_dev()
-    if dp_name == 'gold':
-        return gold_dp_scorer(dataset_names)
-
     if dp_name == 'markov_n=2':
 
         import kenlm
@@ -515,46 +452,6 @@ def make_dp_lm(db_names, n=2):
         f.write(txs_lm_process.stdout)
 
 
-def ltr_lasso_dp_scorer(dataset_names):
-
-    from sklearn.pipeline import Pipeline
-    from sklearn.preprocessing import MinMaxScaler
-    from sklearn.linear_model import Lasso
-    import numpy as np
-
-    models = {}
-
-    dataset_names_id = '_'.join(sorted(dataset_names))
-    sa_extractor_filename = 'dp_extractor_{}'.format(dataset_names_id)
-    sa_extractor_filepath = os.path.join(PRETRAINED_DIR, sa_extractor_filename)
-
-    with open(sa_extractor_filepath, 'rb') as f:
-        fe = pickle.load(f)
-
-    for k in range(2, 8):
-
-        sa_data_filename = 'dp_data_{}_{}.npy'.format(dataset_names_id, k)
-        sa_data_filepath = os.path.join(PRETRAINED_DIR, sa_data_filename)
-
-        data = np.load(sa_data_filepath)
-
-        X = data[:, :-1]
-        y = data[:, -1]
-
-        pipe = Pipeline([
-            ('mms',  MinMaxScaler()),
-            ('clf', Lasso(alpha=0.0001))
-        ])
-
-        pipe.fit(X, y)
-
-        models[k] = pipe
-
-    scorer = get_scorer(models, fe)
-
-    return scorer
-
-
 # Sentence Aggregation
 def random_sa_scorer(sas, n_triples):
 
@@ -562,8 +459,6 @@ def random_sa_scorer(sas, n_triples):
 
     ix_1_triple_1_sen = [i for i, sa in enumerate(sas)
                          if len(sa) == n_triples]
-
-    rs[ix_1_triple_1_sen[0]] = 10e5
 
     return rs
 

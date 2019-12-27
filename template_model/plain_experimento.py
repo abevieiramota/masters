@@ -21,6 +21,13 @@ import sys
 sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, bleu
 from random import Random
+import re
+
+RE_SPLIT_DOT_COMMA = re.compile(r'([\.,\'])')
+
+def preprocess_text(t):
+
+    return ' '.join(' '.join(RE_SPLIT_DOT_COMMA.split(t)).split())
 
 
 class TextGenerationPipeline:
@@ -28,18 +35,13 @@ class TextGenerationPipeline:
     def __init__(self,
                  template_db,
                  tems_lm,
-                 tems_lm_bos,
-                 tems_lm_eos,
-                 tems_lm_preprocess_input,
                  txs_lm,
-                 txs_lm_bos,
-                 txs_lm_eos,
-                 txs_lm_preprocess_input,
                  dp_scorer,
                  sa_scorer,
+                 max_dp,
+                 max_sa,
                  max_tems,
                  max_refs,
-                 max_texts,
                  fallback_template,
                  reg,
                  lp_n,
@@ -47,31 +49,18 @@ class TextGenerationPipeline:
 
         self.template_db = template_db
         self.categories = set(c for (c, _) in template_db.keys())
-        self.tems_lm = tems_lm
-        self.tems_lm_score = partial(tems_lm.score,
-                                     bos=tems_lm_bos,
-                                     eos=tems_lm_eos)
-        self.tems_lm_bos = tems_lm_bos
-        self.tems_lm_eos = tems_lm_eos
-        self.tems_lm_preprocess_input = tems_lm_preprocess_input
-        self.txs_lm = txs_lm
-        self.txs_lm_score = partial(txs_lm.score,
-                                    bos=txs_lm_bos,
-                                    eos=txs_lm_eos)
-        self.txs_lm_bos = txs_lm_bos
-        self.txs_lm_eos = txs_lm_eos
-        self.txs_lm_preprocess_input = txs_lm_preprocess_input
+        self.tems_lm_score = tems_lm.score
+        self.txs_lm_score = txs_lm.score
         self.dp_scorer = dp_scorer
         self.sa_scorer = sa_scorer
+        self.max_dp = max_dp
+        self.max_sa = max_sa
         self.max_tems = max_tems
         self.max_refs = max_refs
-        self.max_texts = max_texts
         self.fallback_template = fallback_template
         self.reg = reg
         self.lp_n = lp_n
         self.lp_a = lp_a
-        self.random_tems = Random(345)
-        self.random_refs = Random(456)
 
     def select_discourse_planning(self, entry, n_triples):
 
@@ -98,11 +87,11 @@ class TextGenerationPipeline:
         for slot_name, slot_pos in t.slots:
             reg_data[(f'{slot_name}-{slot_pos}')] = aligned_data[slot_name]
         text = t.fill(reg_data, a)
-        preprocessed_text = self.tems_lm_preprocess_input(text)
+        score = self.tems_lm_score(text)
+        lp = self.length_penalty(text.split())
+        print(f'Template:{score}\n\t{text}')
 
-        score = self.tems_lm_score(preprocessed_text)
-
-        return score
+        return score / lp
 
     # https://arxiv.org/pdf/1609.08144.pdf
     def length_penalty(self, tokens):
@@ -111,9 +100,7 @@ class TextGenerationPipeline:
 
     def score_text(self, t):
 
-        preprocessed_text = self.txs_lm_preprocess_input(t)
-
-        score = self.txs_lm_score(preprocessed_text)
+        score = self.txs_lm_score(t)
         lp = self.length_penalty(t.split())
 
         return score / lp
@@ -150,22 +137,26 @@ class TextGenerationPipeline:
             else:
                 return []
 
-        return product(*all_ts)
+        return list(product(*all_ts))
 
     def make_text(self, entry):
 
         best_text = None
         best_score = float('-inf')
         n_triples = len(entry.triples)
-        n_texts = 0
+        n_dp_used = 0
 
-#        b = time.time()
         for dp in self.select_discourse_planning(entry, n_triples):
-#            print(time.time() - b)
-#            b = time.time()
+            if n_dp_used == self.max_dp:
+                break
+            n_sa_used = 0
             for sa in self.select_sentence_aggregation(dp, n_triples):
-#                print(time.time() - b)
-                for ts in self.select_templates(entry, sa):
+                if n_sa_used == self.max_sa:
+                    break 
+                templates = self.select_templates(entry, sa)
+                if templates:
+                    n_sa_used += 1
+                for ts in templates:
 
                     ctx = {'seen': set()}
 
@@ -188,11 +179,10 @@ class TextGenerationPipeline:
                             refs = self.reg.refer(so, ctx, self.max_refs)
                             slots.append(slot)
                             all_refs.append(refs)
-
+                        
                         for a_t in a:
                             ctx['seen'].add(a_t.subject)
                             ctx['seen'].add(a_t.object)
-
                         for refs in product(*all_refs):
 
                             reg_data = {}
@@ -209,17 +199,16 @@ class TextGenerationPipeline:
                         generated_text = ' '.join(sents)
                         if generated_text[-1] != '.':
                             generated_text = f'{generated_text} .'
-                        n_texts += 1
-                        generated_score = self.score_text(generated_text)
-
-#                        print(f'{generated_text}\n{generated_score}\n')
+                        generated_text = preprocess_text(generated_text)
+                        generated_score = self.score_text(generated_text.lower())
+                        # print(f'Text:{generated_score}\n\t{generated_text}')
 
                         if generated_score > best_score:
                             best_score = generated_score
                             best_text = generated_text
 
-                        if n_texts >= self.max_texts:
-                            return best_text
+            if n_sa_used > 0:
+                n_dp_used += 1
 
         if not best_text:
             best_text = self.make_fallback_text(entry)
@@ -234,14 +223,10 @@ def make_model(params, train_set):
     tems_lm = load_template_selection_lm(train_set,
                                          params['tems_lm_n'],
                                          params['tems_lm_name'])
-    tems_lm_preprocess_input = load_preprocessing(
-            params['tems_lm_preprocess_input'])
     # 1.1.2 Text Selection Language Model
     txs_lm = load_text_selection_lm(train_set,
                                     params['txs_lm_n'],
                                     params['txs_lm_name'])
-    txs_lm_preprocess_input = load_preprocessing(
-            params['txs_lm_preprocess_input'])
     # 1.2 Template database
     template_db = load_template_db(train_set, params.get('tdb_ns', None))
     # 1.3 Referring Expression Generation
@@ -260,18 +245,13 @@ def make_model(params, train_set):
     tgp = TextGenerationPipeline(
             template_db,
             tems_lm,
-            params['tems_lm_bos'],
-            params['tems_lm_eos'],
-            tems_lm_preprocess_input,
             txs_lm,
-            params['txs_lm_bos'],
-            params['txs_lm_eos'],
-            txs_lm_preprocess_input,
             dp_scorer,
             sa_scorer,
+            params['max_dp'],
+            params['max_sa'],
             params['max_tems'],
             params['max_refs'],
-            params['max_texts'],
             fallback_template,
             reg,
             params['lp_n'],

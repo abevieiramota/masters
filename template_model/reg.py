@@ -18,13 +18,10 @@ class EmptyREGer:
 
 class FirstNameOthersPronounREG:
 
-    def __init__(self, ref_db, ref_lm, fallback=preprocess_so, to_print=False):
+    def __init__(self, ref_db, ref_lm, fallback=preprocess_so):
         self.ref_db = ref_db
         self.fallback = fallback
-        self.score_ref = partial(ref_lm.score,
-                                 bos=False,
-                                 eos=False)
-        self.to_print = to_print
+        self.score_ref = ref_lm.score
 
     def refer(self, s, ctx, max_refs):
 
@@ -40,9 +37,10 @@ class FirstNameOthersPronounREG:
 
         def score_reg(r):
 
-            text = ctx['t'].template_text.replace(slot, r.replace(' ', '_').lower())
+            text = ctx['t'].template_text.replace(slot, r.replace(' ', '_'))
 
             score = self.score_ref(text)
+            # print(f'REG: {score}\n\t{text}')
 
             return score
 

@@ -14,23 +14,18 @@ params = {
         'tems_lm_name': 'lower',
         'txs_lm_name': 'lower',
         'tems_lm_n': 3,
-        'tems_lm_bos': True,
-        'tems_lm_eos': True,
-        'tems_lm_preprocess_input': 'lower',
-        'txs_lm_preprocess_input': 'lower',
         'txs_lm_n': 6,
-        'txs_lm_bos': True,
-        'txs_lm_eos': True,
         'dp_scorer': 'markov_n=2',
         'sa_scorer': 'ltr_lasso',
-        'max_tems': 5,
-        'max_refs': 5,
+        'max_dp': 10,
+        'max_sa': 10,
+        'max_tems': 1,
+        'max_refs': 1,
         'fallback_template': 'jjt',
         'referrer': 'abe',
         'referrer_lm_n': 3,
-        'max_texts': 100,
-        'lp_n': 0,
-        'lp_a': 0
+        'lp_n': 5,
+        'lp_a': 0.1
 }
 
 tgp = make_model(params, ('train', 'dev'))

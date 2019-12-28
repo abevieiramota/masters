@@ -237,6 +237,7 @@ def make_template_selection_lm(dataset_names,
         e_t, _ = extract_templates(dataset)
         tems_lm_texts = make_template_lm_texts(e_t)
         tems_lm_texts = [normalize_thiagos_template(t) for t in tems_lm_texts]
+        tems_lm_texts = [t[:-1] + ' .' for t in tems_lm_texts if t[-1] == '.']
 
         with open(texts_filepath, 'w', encoding='utf-8') as f:
             for t in tems_lm_texts:
@@ -397,15 +398,15 @@ def random_dp_scorer(dps, n_triples):
 
 
 @lru_cache(maxsize=10)
-def load_discourse_planning(dataset_names, dp_name):
+def load_discourse_planning(dataset_names, dp_name, n=None):
 
     if dp_name == 'random':
         return random_dp_scorer
-    if dp_name == 'markov_n=2':
+    if dp_name == 'markov':
 
         import kenlm
 
-        lm_filename = 'dp_lm_model_2_{}.arpa'.format('_'.join(sorted(dataset_names)))
+        lm_filename = 'dp_lm_model_{}_{}.arpa'.format(n, '_'.join(sorted(dataset_names)))
         lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
 
         model = kenlm.Model(lm_filepath)
@@ -463,131 +464,61 @@ def random_sa_scorer(sas, n_triples):
     return rs
 
 
-def ltr_lasso_sa_raw_scorer(dataset_names):
-
-    from sklearn.pipeline import Pipeline
-    from sklearn.preprocessing import MinMaxScaler
-    from sklearn.linear_model import Lasso
-    import numpy as np
-
-    models = {}
-
-    dataset_names_id = '_'.join(sorted(dataset_names))
-    sa_extractor_filename = 'sa_extractor_{}'.format(dataset_names_id)
-    sa_extractor_filepath = os.path.join(PRETRAINED_DIR, sa_extractor_filename)
-
-    with open(sa_extractor_filepath, 'rb') as f:
-        fe = pickle.load(f)
-
-    for k in range(2, 8):
-
-        sa_data_filename = 'sa_data_{}_{}.npy'.format(dataset_names_id, k)
-        sa_data_filepath = os.path.join(PRETRAINED_DIR, sa_data_filename)
-
-        data = np.load(sa_data_filepath)
-
-        X = data[:, :-1]
-        y = data[:, -1]
-
-        pipe = Pipeline([
-            ('mms',  MinMaxScaler()),
-            ('clf', Lasso(alpha=0.0001))
-        ])
-
-        pipe.fit(X, y)
-
-        models[k] = pipe
-
-    scorer = get_scorer(models, fe)
-
-    return scorer
-
-
-def ltr_lasso_sa_scorer(dataset_names):
-
-    scorer = ltr_lasso_sa_raw_scorer(dataset_names)
-
-    def score_one_sentence_per_triple_best(os, n_triples):
-
-        ix_one_sen_per_triple = [i for i in range(len(os))
-                                 if len(os[i]) == n_triples][0]
-        scores = scorer(os, n_triples)
-
-        scores[ix_one_sen_per_triple] = max(scores) + 1
-
-        return scores
-
-    return scorer
-
-
-def inv_ltr_lasso_sa_scorer(dataset_names):
-
-    scorer = ltr_lasso_sa_raw_scorer(dataset_names)
-
-    def score_one_sentence_per_triple_best(os, n_triples):
-
-        ix_one_sen_per_triple = [i for i in range(len(os))
-                                 if len(os[i]) == n_triples][0]
-        scores = scorer(os, n_triples)
-        scores = [-1*x for x in scores]
-
-        scores[ix_one_sen_per_triple] = max(scores) + 1
-
-        return scores
-
-    return score_one_sentence_per_triple_best
-
-
-def gold_sa_scorer(dataset_names):
-
-    dev = load_dataset('dev')
-    seen = set()
-    i = 0
-
-    def gold_sa_scorer_(sas, n_triples):
-
-        nonlocal i
-        nonlocal seen
-
-        tripleset = tuple(sorted(flatten(sas[0])))
-
-        aggs = []
-        for l in dev[i].lexes:
-            st = l['sorted_triples']
-            if st:
-                aggs.append([[x for x in y] for y in st])
-
-        scores = []
-        for sa in sas:
-            if len(sa) == n_triples:
-                scores.append(2)
-            elif sa in aggs:
-                scores.append(1)
-            else:
-                scores.append(0)
-
-        if tripleset not in seen:
-            i = i + 1
-            seen.add(tripleset)
-
-        return scores
-
-    return gold_sa_scorer_
-
-
 @lru_cache(maxsize=10)
-def load_sentence_aggregation(dataset_names, sa_name):
+def load_sentence_aggregation(dataset_names, sa_name, n=None):
 
     if sa_name == 'random':
         return random_sa_scorer
-    if sa_name == 'ltr_lasso':
-        return ltr_lasso_sa_scorer(dataset_names)
-    if sa_name == 'inv_ltr_lasso':
-        return inv_ltr_lasso_sa_scorer(dataset_names)
-    # ! atualmente só funciona se o target for dev
-    # !    e a geração dos textos for na agregação das entries no load_dev()
-    if sa_name == 'gold':
-        return gold_sa_scorer(dataset_names)
+
+    if sa_name == 'markov':
+
+        import kenlm
+
+        lm_filename = 'sa_lm_model_{}_{}.arpa'.format(n, '_'.join(sorted(dataset_names)))
+        lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+
+        model = kenlm.Model(lm_filepath)
+
+        def scorer(sas, n_triples=None):
+
+            scores = []
+            for sa in sas:
+                pred_text = ' | '.join(' _ '.join(t.predicate.replace(' ', '_') for t in st) for st in sa)
+                score = model.score(pred_text)
+                scores.append(score)
+
+            return scores
+        return scorer
+
+    
+def make_sa_lm(db_names, n=2):
+
+    db = flatten(load_dataset(db_name) for db_name in db_names)
+
+    sas = []
+
+    for e in (e for e in db if len(e.triples) >= 2):
+        for l in e.lexes:
+            if l['comment'] == 'good' and l['sorted_triples'] and len(e.triples) == sum(len(st) for st in l['sorted_triples']):
+                sa = ' | '.join(' _ '.join(t.predicate.replace(' ', '_') for t in st) for st in l['sorted_triples'])
+                sas.append(sa)
+
+    sa_lm_texts_filename= 'txs_sa_texts_{}.txt'.format('_'.join(sorted(db_names)))
+    sa_lm_texts_filepath = os.path.join(PRETRAINED_DIR, sa_lm_texts_filename)
+
+    with open(sa_lm_texts_filepath, 'w') as f:
+        for sa in sas:
+            f.write(f'{sa}\n')
+
+    with open(sa_lm_texts_filepath, 'rb') as f:
+        txs_lm_process = subprocess.run([KENLM, '--discount_fallback', '-o', str(n)],
+                                        stdout=subprocess.PIPE,
+                                        input=f.read())
+
+    lm_filename = 'sa_lm_model_{}_{}.arpa'.format(n, '_'.join(sorted(db_names)))
+    lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+    with open(lm_filepath, 'wb') as f:
+        f.write(txs_lm_process.stdout)
 
 
 # Template Fallback
@@ -595,10 +526,3 @@ def load_template_fallback(dataset_names, fallback_name):
 
     if fallback_name == 'jjt':
         return JustJoinTemplate()
-
-
-# Preprocessing
-def load_preprocessing(preprocessing_name):
-
-    if preprocessing_name == 'lower':
-        return lambda t: t.lower()

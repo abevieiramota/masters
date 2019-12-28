@@ -11,8 +11,7 @@ from pretrained_models import (
         load_template_db,
         load_discourse_planning,
         load_sentence_aggregation,
-        load_template_fallback,
-        load_preprocessing
+        load_template_fallback
 )
 from gerar_base_sentence_aggregation import SentenceAggregationFeatures
 from gerar_base_discourse_planning import DiscoursePlanningFeatures
@@ -89,7 +88,7 @@ class TextGenerationPipeline:
         text = t.fill(reg_data, a)
         score = self.tems_lm_score(text)
         lp = self.length_penalty(text.split())
-        print(f'Template:{score}\n\t{text}')
+        # print(f'Template:{score}\n\t{text}')
 
         return score / lp
 
@@ -234,9 +233,9 @@ def make_model(params, train_set):
                         params['referrer'],
                         params['referrer_lm_n'])
     # 1.4 Discourse Planning
-    dp_scorer = load_discourse_planning(train_set, params['dp_scorer'])
+    dp_scorer = load_discourse_planning(train_set, params['dp_scorer'], params['dp_scorer_n'])
     # 1.5 Sentence Aggregation
-    sa_scorer = load_sentence_aggregation(train_set, params['sa_scorer'])
+    sa_scorer = load_sentence_aggregation(train_set, params['sa_scorer'], params['sa_scorer_n'])
     # 1.6 Template Fallback
     fallback_template = load_template_fallback(train_set,
                                                params['fallback_template'])

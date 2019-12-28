@@ -21,76 +21,25 @@ TXS_LM_MODEL_FILENAME = 'txs_lm.arpa'
 TEMPLATE_DB_FILENAME = 'template_db'
 KENLM = os.path.join(BASE_DIR, '../../kenlm/build/bin/lmplz')
 
-
 grid =  [
     {
         'tems_lm_name': ['lower'],
         'txs_lm_name': ['lower'],
-        'tems_lm_n': [3],
-        'tems_lm_bos': [True],
-        'tems_lm_eos': [True],
-        'tems_lm_preprocess_input': ['lower'],
-        'txs_lm_preprocess_input': ['lower'],
-        'txs_lm_n': [3],
-        'txs_lm_bos': [True],
-        'txs_lm_eos': [True],
-        'dp_scorer': ['markov_n=3'],
-        'sa_scorer': ['ltr_lasso'],
-        'max_dp': [2],
-        'max_sa': [2],
-        'max_tems': [2],
-        'max_refs': [1],
+        'tems_lm_n': [3, 4],
+        'txs_lm_n': [3, 4],
+        'dp_scorer': ['markov'],
+        'dp_scorer_n': [2, 3],
+        'sa_scorer': ['markov'],
+        'sa_scorer_n': [2, 3],
+        'max_dp': [5, 10],
+        'max_sa': [5, 10],
+        'max_tems': [1, 2],
+        'max_refs': [1, 2],
         'fallback_template': ['jjt'],
         'referrer': ['abe'],
-        'referrer_lm_n': [3],
-        'model_name': ['tems3_txs3']
-    },
-    {
-        'tems_lm_name': ['lower'],
-        'txs_lm_name': ['lower'],
-        'tems_lm_n': [6],
-        'tems_lm_bos': [True],
-        'tems_lm_eos': [True],
-        'tems_lm_preprocess_input': ['lower'],
-        'txs_lm_preprocess_input': ['lower'],
-        'txs_lm_n': [6],
-        'txs_lm_bos': [True],
-        'txs_lm_eos': [True],
-        'dp_scorer': ['markov_n=3'],
-        'sa_scorer': ['ltr_lasso'],
-        'max_dp': [2],
-        'max_sa': [2],
-        'max_tems': [2],
-        'max_refs': [1],
-        'fallback_template': ['jjt'],
-        'referrer': ['abe'],
-        'referrer_lm_n': [6],
-        'model_name': ['tems6_txs6']
-    }
-]
-# best n=3
-grid =  [
-    {
-        'tems_lm_name': ['lower'],
-        'txs_lm_name': ['lower'],
-        'tems_lm_n': [3],
-        'tems_lm_bos': [True],
-        'tems_lm_eos': [True],
-        'tems_lm_preprocess_input': ['lower'],
-        'txs_lm_preprocess_input': ['lower'],
-        'txs_lm_n': [3],
-        'txs_lm_bos': [True],
-        'txs_lm_eos': [True],
-        'dp_scorer': ['markov_n=3', 'random'],
-        'sa_scorer': ['ltr_lasso', 'random'],
-        'max_dp': [4],
-        'max_sa': [4],
-        'max_tems': [4],
-        'max_refs': [4],
-        'fallback_template': ['jjt'],
-        'referrer': ['abe'],
-        'referrer_lm_n': [3],
-        'max_texts': [1, 10, 100, 1000, 10000]
+        'referrer_lm_n': [3, 4],
+        'lp_n': [0],
+        'lp_a': [0]
     }
 ]
 
@@ -134,6 +83,9 @@ for params in ParameterGrid(grid):
     texts_outpath = (f"../data/models/dev/{model_name}/"
                      f"{model_name}.txt")
 
+    import time 
+
+    ini = time.time()
     with open(texts_outpath, 'w', encoding='utf-8') as f:
         template_infos = []
         for i, e in enumerate(dev):
@@ -141,6 +93,11 @@ for params in ParameterGrid(grid):
             f.write(f'{text}\n')
             if i % 100 == 0:
                 print(i)
+    end = time.time()
+    elapsed_time = end - ini 
+    with open((f"../data/models/dev/{model_name}/"
+               f"elapsed_time.txt"), 'w') as f:
+        f.write(f'{elapsed_time}')
 
     preprocess_model_to_evaluate(texts_outpath, 'dev')
 

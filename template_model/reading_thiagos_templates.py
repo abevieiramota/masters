@@ -122,33 +122,6 @@ def make_template_lm_texts(entries_templates):
     return template_lm_texts
 
 
-# def normalize_thiagos_template(s):
-
-#     s = RE_SPACE_BEFORE_COMMA_DOT.sub('', s)
-
-#     s = RE_SPACE_AFTER_COMMA.sub(r', \g<1>', s)
-
-#     s = RE_SPACE_BEFORE_PARENS.sub(r'\g<1> (', s)
-
-#     s = RE_WEIRD_QUOTES_MARKS2.sub(r'"\g<1>"', s)
-
-#     s = RE_WEIRD_QUOTES_MARKS3.sub(r"''\g<1>''", s)
-
-#     s = RE_WEIRD_QUOTES_MARKS4.sub(r"'\g<1>'", s)
-
-#     s = RE_WEIRD_QUOTES_MARKS5.sub(r"'\g<1>'", s)
-
-#     s = RE_WEIRD_QUOTE_MARKS.sub('"', s)
-
-#     s = RE_APOSTROPH_S.sub('\'s', s)
-
-#     s = RE_WEIRD_MINUS_SIGNS.sub('–', s)
-
-#     s = RE_SPACES_INSIDE_PARENS.sub(r'(\g<1>)', s)
-
-#     return RE_SPACES_INSIDE_QUOTES.sub(r'"\g<1>"', s)
-
-
 def normalize_thiagos_template(s):
     # removes single space between an entity and a dot or a comma
 

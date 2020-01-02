@@ -13,21 +13,21 @@ from evaluate import preprocess_model_to_evaluate, evaluate_system
 params = {
         'tems_lm_name': 'lower',
         'txs_lm_name': 'lower',
-        'tems_lm_n': 3,
-        'txs_lm_n': 6,
+        'tems_lm_n': 4,
+        'txs_lm_n': 4,
         'dp_scorer': 'markov',
-        'dp_scorer_n': 4,
+        'dp_scorer_n': 3,
         'sa_scorer': 'markov',
-        'sa_scorer_n': 4,
-        'max_dp': 10,
+        'sa_scorer_n': 2,
+        'max_dp': 5,
         'max_sa': 10,
         'max_tems': 1,
-        'max_refs': 1,
+        'max_refs': 2,
         'fallback_template': 'jjt',
         'referrer': 'abe',
-        'referrer_lm_n': 3,
-        'lp_n': 0,
-        'lp_a': 0
+        'referrer_lm_n': 4,
+        'lp_n': 5,
+        'lp_a': 0.4
 }
 
 tgp = make_model(params, ('train', 'dev'))

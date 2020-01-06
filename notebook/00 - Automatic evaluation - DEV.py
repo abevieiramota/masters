@@ -25,6 +25,7 @@ from evaluate import evaluate_all_systems, preprocess_all_models
 
 
 models = [os.path.basename(p) for p in glob.glob(f'../data/models/dev/*')]
+models_ok = []
 
 
 # In[55]:
@@ -35,8 +36,9 @@ for model in models:
     if os.path.isfile(f'../data/models/dev/{model}/system_evaluation.csv'):
         df_ = pd.read_csv(f'../data/models/dev/{model}/system_evaluation.csv', index_col=['subset', 'references', 'metric'])
         dfs.append(df_)
+        models_ok.append(model)
 
-scores_df = pd.concat(dfs, keys=models).unstack()
+scores_df = pd.concat(dfs, keys=models_ok).unstack()
 scores_df.columns = scores_df.columns.droplevel()
 
 
@@ -44,7 +46,7 @@ scores_df.columns = scores_df.columns.droplevel()
 
 
 params_dfs = []
-for model in models:
+for model in models_ok:
     with open(f'../data/models/dev/{model}/params.pkl', 'rb') as f:
         params_dfs.append(pd.DataFrame([pickle.load(f)], index=[model]))
     
@@ -57,7 +59,7 @@ params_df.txs_lm_n.fillna(0, inplace=True)
 
 
 elapsed_time_dfs = []
-for model in models:
+for model in models_ok:
     try:
         with open(f'../data/models/dev/{model}/elapsed_time.txt', 'r') as f:
             elapsed_time_dfs.append(pd.DataFrame(data=[float(f.readline()[:-1])], index=[model], columns=['elapsed_time']))

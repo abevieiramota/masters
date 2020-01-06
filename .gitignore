@@ -142,3 +142,4 @@ data/pretrained_models*
 data/models/**/*
 .pkl
 evaluation\test.pkl
+!notebook/grid.csv

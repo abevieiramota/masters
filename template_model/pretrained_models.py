@@ -171,6 +171,8 @@ def make_pretrained_abe_ref_dbs(dataset_name):
                 lex_keys.add(lex_key)
                 for i, lex_value in enumerate(lex_values):
 
+                    lex_value = lex_value.strip().lower()
+
                     if i == 0:
                         ref_db['1st'][lex_key].add(lex_value)
                     else:

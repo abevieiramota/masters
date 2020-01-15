@@ -81,7 +81,7 @@ def extract_text_reg_lm(l):
     if m:
 
         captureds = m.groupdict()
-        as_keys = {k: v.replace(' ', '_') for k, v in captureds.items()}
+        as_keys = {k: v.strip().replace(' ', '_').lower() for k, v in captureds.items()}
 
         return to_fill.format(**as_keys)
     return None

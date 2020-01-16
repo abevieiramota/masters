@@ -19,20 +19,20 @@ params = {
         'dp_scorer_n': 4,
         'sa_scorer': 'markov',
         'sa_scorer_n': 3,
-        'max_dp': 5,
-        'max_sa': 5,
-        'max_tems': 2,
+        'max_dp': 1,
+        'max_sa': 1,
+        'max_tems': 1,
         'max_refs': 1,
         'fallback_template': 'jjt',
         'referrer': 'abe',
         'referrer_lm_n': 3,
-        'lp_n': 2,
-        'lp_a': 0.5
+        'lp_n': 0,
+        'lp_a': 0
 }
 
 tgp = make_model(params, ('train', 'dev'))
 
-model_name = '43434_5512_205'
+model_name = '43434_1111_00'
 
 # create model folder
 outdir = f"../data/models/test/{model_name}"

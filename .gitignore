@@ -138,7 +138,6 @@ data/pretrained_models*
 .pydevproject
 .settings/org.eclipse.core.resources.prefs
 *.pkl
-data/models/**/*
 .pkl
 evaluation\test.pkl
 !notebook/grid.csv

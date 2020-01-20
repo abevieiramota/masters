@@ -130,8 +130,7 @@ bkp/
 kenlm/
 *.npy
 *.csv
-data/models/dev*
-data/models/4na*
+data/models/dev
 data/pretrained_models*
 /bin/
 .project
@@ -143,3 +142,4 @@ data/models/**/*
 .pkl
 evaluation\test.pkl
 !notebook/grid.csv
+*.zip

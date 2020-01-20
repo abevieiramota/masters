@@ -1,0 +1,11 @@
+subset,references,metric,value
+old-cat,"[0, 1, 2]",bleu,89.26
+old-cat,"[0, 1, 2]",bleu_1,100.0
+old-cat,"[0, 1, 2]",bleu_2,94.8
+old-cat,"[0, 1, 2]",bleu_3,90.6
+old-cat,"[0, 1, 2]",bleu_4,87.1
+old-cat,"[0, 1, 2]",meteor,0.6007447249075522
+old-cat,"[0, 1, 2]",ter,0.06788140652093579
+old-cat,"[0, 1, 2]",avg_n_tokens,22.685890834191554
+old-cat,"[0, 1, 2]",avg_n_stop_words,0.34124750317777375
+old-cat,"[0, 1, 2]",macro_avg_n_stop_words,0.3326366160473004

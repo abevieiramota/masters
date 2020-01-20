@@ -142,3 +142,5 @@ data/pretrained_models*
 evaluation\test.pkl
 !notebook/grid.csv
 *.zip
+!data/models/test/**/*.csv
+!data/models/test/**/*.pkl

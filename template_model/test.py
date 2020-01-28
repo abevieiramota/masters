@@ -19,10 +19,10 @@ params = {
         'dp_scorer_n': 4,
         'sa_scorer': 'markov',
         'sa_scorer_n': 3,
-        'max_dp': 1,
-        'max_sa': 1,
-        'max_tems': 1,
-        'max_refs': 1,
+        'max_dp': 5,
+        'max_sa': 5,
+        'max_tems': 2,
+        'max_refs': 2,
         'fallback_template': 'jjt',
         'referrer': 'abe',
         'referrer_lm_n': 3,
@@ -32,7 +32,7 @@ params = {
 
 tgp = make_model(params, ('train', 'dev'))
 
-model_name = '43434_1111_00'
+model_name = '43434_5522_00'
 
 # create model folder
 outdir = f"../data/models/test/{model_name}"
@@ -51,6 +51,10 @@ texts_outpath = (f"../data/models/test/{model_name}/"
 
 test = load_shared_task_test()
 
+import time 
+
+ini = time.time()
+
 with open(texts_outpath, 'w', encoding='utf-8') as f:
     template_infos = []
     for i, e in enumerate(test):
@@ -59,9 +63,15 @@ with open(texts_outpath, 'w', encoding='utf-8') as f:
         if i % 100 == 0:
             print(i)
 
+end = time.time()
+elapsed_time = end - ini 
+with open((f"../data/models/test/{model_name}/"
+            f"elapsed_time.txt"), 'w') as f:
+    f.write(f'{elapsed_time}')
+
 preprocess_model_to_evaluate(texts_outpath, 'test')
 
-results = evaluate_system(model_name, 'test', ['old-cat'])
+results = evaluate_system(model_name, 'test', ['old-cat', 'all-cat'])
 
 print(model_name)
 print(results)

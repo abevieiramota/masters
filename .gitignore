@@ -144,4 +144,4 @@ evaluation\test.pkl
 *.zip
 !data/models/test/**/*.csv
 !data/models/test/**/*.pkl
-!evaluation/references
+!evaluation/references/**/*

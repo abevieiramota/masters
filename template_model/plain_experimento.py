@@ -79,18 +79,34 @@ class TextGenerationPipeline:
 
         return sas
 
-    def score_template(self, t, a):
+    def top_templates(self, tts, sa):
 
-        aligned_data = t.align(a)
-        reg_data = {}
-        for slot_name, slot_pos in t.slots:
-            reg_data[(f'{slot_name}-{slot_pos}')] = aligned_data[slot_name]
-        text = t.fill(reg_data, a)
-        score = self.tems_lm_score(text)
-        lp = self.length_penalty(text.split())
-        # print(f'Template:{score}\n\t{text}')
+        result = []
+        scores = []
+        min_score = -10e5
+        for tt in tts:
+            sentences = [] 
+            for t, a in zip(tt, sa):
+                aligned_data = t.align(a)
+                reg_data = {}
+                for slot_name, slot_pos in t.slots:
+                    reg_data[(f'{slot_name}-{slot_pos}')] = aligned_data[slot_name]
+                sentence = t.fill(reg_data, a)
+                sentences.append(sentence)
+            text = ' '.join(sentences)
+            score = self.tems_lm_score(text) / self.length_penalty(text.split())
 
-        return score / lp
+            if score > min_score:
+                if len(result) == self.max_tems:
+                    min_index = scores.index(min_score)
+                    result[min_index] = tt
+                    scores[min_index] = score 
+                else:
+                    result.append(tt)
+                    scores.append(score)
+                min_score = min(scores)
+        
+        return result
 
     # https://arxiv.org/pdf/1609.08144.pdf
     def length_penalty(self, tokens):
@@ -127,16 +143,15 @@ class TextGenerationPipeline:
                                   for c in self.categories))
 
             if ts:
-                sorted_ts = sorted(ts,
-                                   key=lambda t: self.score_template(t, sa_part),
-                                   reverse=True)
-                all_ts.append(sorted_ts[:self.max_tems])
+                all_ts.append(ts)
             elif len(sa_part) == 1:
                 all_ts.append([self.fallback_template])
             else:
                 return []
 
-        return list(product(*all_ts))
+        combinations = product(*all_ts)
+
+        return self.top_templates(combinations, sa)
 
     def make_text(self, entry):
 

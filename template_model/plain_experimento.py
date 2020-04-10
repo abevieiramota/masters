@@ -61,19 +61,19 @@ class TextGenerationPipeline:
         self.lp_n = lp_n
         self.lp_a = lp_a
 
-    def select_discourse_planning(self, entry, n_triples):
+    def select_discourse_planning(self, entry):
 
         dps = list(permutations(entry.triples))
-        dps_scores = self.dp_scorer(dps, n_triples)
+        dps_scores = self.dp_scorer(dps)
         dps = sort_together([dps_scores, dps],
                             reverse=True)[1]
 
         return dps
 
-    def select_sentence_aggregation(self, dp, n_triples):
+    def select_sentence_aggregation(self, dp):
 
         sas = list(partitions(dp))
-        sas_scores = self.sa_scorer(sas, n_triples)
+        sas_scores = self.sa_scorer(sas)
         sas = sort_together([sas_scores, sas],
                             reverse=True)[1]
 
@@ -157,14 +157,13 @@ class TextGenerationPipeline:
 
         best_text = None
         best_score = float('-inf')
-        n_triples = len(entry.triples)
         n_dp_used = 0
 
-        for dp in self.select_discourse_planning(entry, n_triples):
+        for dp in self.select_discourse_planning(entry):
             if n_dp_used == self.max_dp:
                 break
             n_sa_used = 0
-            for sa in self.select_sentence_aggregation(dp, n_triples):
+            for sa in self.select_sentence_aggregation(dp):
                 if n_sa_used == self.max_sa:
                     break 
                 templates = self.select_templates(entry, sa)

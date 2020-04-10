@@ -394,7 +394,7 @@ def get_random_scores(n):
     return rs
 
 
-def random_dp_scorer(dps, n_triples):
+def random_dp_scorer(dps):
 
     return get_random_scores(len(dps))
 
@@ -413,7 +413,7 @@ def load_discourse_planning(dataset_names, dp_name, n=None):
 
         model = kenlm.Model(lm_filepath)
 
-        def scorer(triples_list, n_triples=None):
+        def scorer(triples_list):
 
             scores = []
             for triples in triples_list:
@@ -456,12 +456,9 @@ def make_dp_lm(db_names, n=2):
 
 
 # Sentence Aggregation
-def random_sa_scorer(sas, n_triples):
+def random_sa_scorer(sas):
 
     rs = get_random_scores(len(sas))
-
-    ix_1_triple_1_sen = [i for i, sa in enumerate(sas)
-                         if len(sa) == n_triples]
 
     return rs
 
@@ -481,7 +478,7 @@ def load_sentence_aggregation(dataset_names, sa_name, n=None):
 
         model = kenlm.Model(lm_filepath)
 
-        def scorer(sas, n_triples=None):
+        def scorer(sas):
 
             scores = []
             for sa in sas:

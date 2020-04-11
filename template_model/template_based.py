@@ -1,4 +1,5 @@
 from collections import namedtuple
+from more_itertools import flatten
 from util import preprocess_so
 import re
 
@@ -36,50 +37,6 @@ def abstract_triples(triples, slot_template=SLOT_NAME):
     return tuple(abstracted_triples)
 
 
-class Template:
-
-    def __init__(self, triples, template_text):
-
-        self.template_triples = tuple(triples)
-        self.template_text = template_text
-        self.slots = RE_FIND_SLOT_DEF.findall(self.template_text)
-
-    def fill(self, reg_data, triples=None):
-
-        return self.template_text.format(**reg_data)
-
-    def align(self, triples):
-
-        positioned_data = {}
-
-        for tt, it in zip(self.template_triples, triples):
-
-            if tt.subject not in positioned_data:
-
-                positioned_data[tt.subject] = it.subject
-
-            if tt.object not in positioned_data:
-
-                positioned_data[tt.object] = it.object
-
-        return positioned_data
-
-    def __hash__(self):
-
-        return hash((self.template_triples, self.template_text))
-
-    def __eq__(self, other):
-
-        return isinstance(self, type(other)) and \
-               self.template_triples == other.template_triples and \
-               self.template_text == other.template_text
-
-    def __repr__(self):
-
-        return 'Structure: {}\nText: {}'.format(self.template_triples,
-                                                self.template_text)
-
-
 class JustJoinTemplate:
 
     def __init__(self):
@@ -110,3 +67,78 @@ class JustJoinTemplate:
 
     def __repr__(self):
         return 'template {s} {p} {o}.'
+
+
+class TemplateDatabase:
+
+    def __init__(self, template_db_data, template_fallback):
+
+        self.template_db_data = template_db_data 
+        self.categories = set(c for (c, _) in template_db_data.keys())
+        self.template_fallback = [template_fallback]
+
+    def select(self, category, triples):
+        
+        a_triples = abstract_triples(triples)
+        c_key = (category, a_triples)
+
+        if c_key in self.template_db_data:
+            ts = self.template_db_data[c_key]
+        else:
+            ts = list(flatten(self.template_db_data.get((c, a_triples), [])
+                              for c in self.categories))
+
+        if ts:
+            return ts 
+        elif len(triples) == 1:
+            return self.template_fallback
+        else:
+            return []
+
+
+class Template:
+
+    def __init__(self, triples, template_text):
+
+        self.template_triples = tuple(triples)
+        self.template_text = template_text
+        # pairs of (slot-name, slot-n-occurrence)
+        self.slots = RE_FIND_SLOT_DEF.findall(self.template_text)
+
+    def fill(self, reg_data, triples=None):
+
+        return self.template_text.format(**reg_data)
+
+    def align(self, triples):
+        # retorna um map de {slot_id: entity_id}
+        #    onde slot_id pertence a self.template_triples
+        #    e entity_id pertence a triples
+
+        positioned_data = {}
+
+        for tt, it in zip(self.template_triples, triples):
+
+            if tt.subject not in positioned_data:
+
+                positioned_data[tt.subject] = it.subject
+
+            if tt.object not in positioned_data:
+
+                positioned_data[tt.object] = it.object
+
+        return positioned_data
+
+    def __hash__(self):
+
+        return hash((self.template_triples, self.template_text))
+
+    def __eq__(self, other):
+
+        return isinstance(self, type(other)) and \
+               self.template_triples == other.template_triples and \
+               self.template_text == other.template_text
+
+    def __repr__(self):
+
+        return 'Structure: {}\nText: {}'.format(self.template_triples,
+                                                self.template_text)

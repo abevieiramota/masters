@@ -13,10 +13,10 @@ params = {
         'dp_scorer_n': 3,
         'sa_scorer': 'markov',
         'sa_scorer_n': 3,
-        'max_dp': 3, 
-        'max_sa': 3,
-        'max_tems': 3,
-        'max_refs': 1,
+        'max_dp': 2, 
+        'max_sa': 2,
+        'max_tems': 2,
+        'max_refs': 2,
         'fallback_template': 'jjt',
         'referrer': 'abe',
         'referrer_lm_n': 3,
@@ -27,4 +27,3 @@ params = {
 tgp = make_model(params, ('train', 'dev'))
 
 test = load_shared_task_test()
-#test = load_test()

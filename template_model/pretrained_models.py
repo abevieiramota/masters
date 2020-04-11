@@ -14,7 +14,7 @@ from reg import EmptyREGer, FirstNameOthersPronounREG
 from more_itertools import flatten
 import subprocess
 from random import shuffle
-from template_based import JustJoinTemplate
+from template_based import JustJoinTemplate, TemplateDatabase
 from discourse_planning import extract_orders
 from gerar_base_sentence_aggregation import SentenceAggregationFeatures
 from gerar_base_discourse_planning import DiscoursePlanningFeatures
@@ -323,7 +323,7 @@ def make_text_selection_lm(dataset_names,
 
 # Template DB
 @lru_cache(maxsize=10)
-def load_template_db(dataset_names, ns=None):
+def load_template_db(dataset_names, fallback_template=None, ns=None):
 
     template_db_filename = 'template_db_{}'.format(
             '_'.join(sorted(dataset_names)))
@@ -333,10 +333,11 @@ def load_template_db(dataset_names, ns=None):
         template_db = pickle.load(f)
 
     if ns is None:
-        return template_db
+        return TemplateDatabase(template_db, fallback_template)
     else:
-        return {k: v for k, v in template_db.items()
-                if len(k[1]) in ns}
+        tdb = {k: v for k, v in template_db.items()
+               if len(k[1]) in ns}
+        return TemplateDatabase(tdb, fallback_template)
 
 
 def make_template_db(dataset_names):
@@ -394,7 +395,7 @@ def get_random_scores(n):
     return rs
 
 
-def random_dp_scorer(dps, n_triples):
+def random_dp_scorer(dps):
 
     return get_random_scores(len(dps))
 
@@ -413,7 +414,7 @@ def load_discourse_planning(dataset_names, dp_name, n=None):
 
         model = kenlm.Model(lm_filepath)
 
-        def scorer(triples_list, n_triples=None):
+        def scorer(triples_list):
 
             scores = []
             for triples in triples_list:
@@ -456,7 +457,9 @@ def make_dp_lm(db_names, n=2):
 
 
 # Sentence Aggregation
-def random_sa_scorer(sas, n_triples):
+def random_sa_scorer(sas):
+
+    n_triples = sum(len(a) for a in sas[0])
 
     rs = get_random_scores(len(sas))
 
@@ -481,7 +484,7 @@ def load_sentence_aggregation(dataset_names, sa_name, n=None):
 
         model = kenlm.Model(lm_filepath)
 
-        def scorer(sas, n_triples=None):
+        def scorer(sas):
 
             scores = []
             for sa in sas:

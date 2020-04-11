@@ -16,11 +16,12 @@ from pretrained_models import (
 from gerar_base_sentence_aggregation import SentenceAggregationFeatures
 from gerar_base_discourse_planning import DiscoursePlanningFeatures
 from reading_thiagos_templates import Entry
+from random import Random
+import re
 import sys
 sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, bleu
-from random import Random
-import re
+
 
 RE_SPLIT_DOT_COMMA = re.compile(r'([\.,\'])')
 
@@ -47,9 +48,8 @@ class TextGenerationPipeline:
                  lp_a):
 
         self.template_db = template_db
-        self.categories = set(c for (c, _) in template_db.keys())
-        self.tems_lm_score = tems_lm.score
-        self.txs_lm_score = txs_lm.score
+        self.tems_lm = tems_lm
+        self.txs_lm = txs_lm
         self.dp_scorer = dp_scorer
         self.sa_scorer = sa_scorer
         self.max_dp = max_dp
@@ -61,19 +61,19 @@ class TextGenerationPipeline:
         self.lp_n = lp_n
         self.lp_a = lp_a
 
-    def select_discourse_planning(self, entry, n_triples):
+    def select_dp(self, entry):
 
         dps = list(permutations(entry.triples))
-        dps_scores = self.dp_scorer(dps, n_triples)
+        dps_scores = self.dp_scorer(dps)
         dps = sort_together([dps_scores, dps],
                             reverse=True)[1]
 
         return dps
 
-    def select_sentence_aggregation(self, dp, n_triples):
+    def select_sa(self, dp):
 
         sas = list(partitions(dp))
-        sas_scores = self.sa_scorer(sas, n_triples)
+        sas_scores = self.sa_scorer(sas)
         sas = sort_together([sas_scores, sas],
                             reverse=True)[1]
 
@@ -86,9 +86,8 @@ class TextGenerationPipeline:
         for slot_name, slot_pos in t.slots:
             reg_data[(f'{slot_name}-{slot_pos}')] = aligned_data[slot_name]
         text = t.fill(reg_data, a)
-        score = self.tems_lm_score(text)
+        score = self.tems_lm.score(text)
         lp = self.length_penalty(text.split())
-        # print(f'Template:{score}\n\t{text}')
 
         return score / lp
 
@@ -99,7 +98,8 @@ class TextGenerationPipeline:
 
     def score_text(self, t):
 
-        score = self.txs_lm_score(t)
+        t = preprocess_text(t)
+        score = self.txs_lm.score(t)
         lp = self.length_penalty(t.split())
 
         return score / lp
@@ -114,75 +114,104 @@ class TextGenerationPipeline:
     def select_templates(self, entry, sa):
 
         all_ts = []
+        all_scores = []
 
         for sa_part in sa:
 
-            a_triples = abstract_triples(sa_part)
-            c_key = (entry.category, a_triples)
+            ts = self.template_db.select(entry.category, sa_part)
 
-            if c_key in self.template_db:
-                ts = self.template_db[c_key]
-            else:
-                ts = list(flatten(self.template_db.get((c, a_triples), [])
-                                  for c in self.categories))
-
-            if ts:
-                sorted_ts = sorted(ts,
-                                   key=lambda t: self.score_template(t, sa_part),
-                                   reverse=True)
-                all_ts.append(sorted_ts[:self.max_tems])
-            elif len(sa_part) == 1:
-                all_ts.append([self.fallback_template])
-            else:
+            if not ts:
                 return []
 
-        return list(product(*all_ts))
+            scores = [self.score_template(t, sa_part) for t in ts]
+            scores, ts = sort_together([scores, ts], reverse=True)
+
+            all_ts.append(ts[:self.max_tems])
+            all_scores.append(scores[:self.max_tems])
+        
+        all_ts_comb = list(product(*all_ts))
+        all_scores_comb = [sum(scores) for scores in product(*all_scores)]
+
+        selected_templates = sort_together([all_scores_comb, all_ts_comb], reverse=True)[1][:self.max_tems]
+
+        return selected_templates
 
     def make_text(self, entry):
 
+        m_t_n = {t:i for i, t in enumerate(entry.triples)}
+        for t, i in m_t_n.items():
+            print(f'{i} -> {t}')
+
         best_text = None
         best_score = float('-inf')
-        n_triples = len(entry.triples)
         n_dp_used = 0
 
-        for dp in self.select_discourse_planning(entry, n_triples):
+        for dp in self.select_dp(entry):
+            print(f'Order: ', [m_t_n[t] for t in dp])
             if n_dp_used == self.max_dp:
                 break
+
             n_sa_used = 0
-            for sa in self.select_sentence_aggregation(dp, n_triples):
+            for sa in self.select_sa(dp):
+                print(f'Agg: ', [[m_t_n[t] for t in part] for part in sa])
                 if n_sa_used == self.max_sa:
                     break 
+
                 templates = self.select_templates(entry, sa)
-                if templates:
-                    n_sa_used += 1
+                for tems in templates:
+                    for sa_part, t in zip(sa, tems):
+                        print([m_t_n[t] for t in sa_part],  f'-> {t.template_text}')
+                    print()
+                if not templates:
+                    print('>>>>Agg not used')
+                    continue
+                
+                n_sa_used += 1
+                
                 for ts in templates:
+                    # combinação de templates para um particionamento
 
                     ctx = {'seen': set()}
 
                     all_sent_texts = []
 
                     for a, t in zip(sa, ts):
+                        # pares de parte e template
 
                         sent_texts = []
+                        # sentenças que dá para construir com o template e as referências
 
                         aligned_data = t.align(a)
+                        # ??? o que é Template.align?
                         all_refs = []
+                        all_scores = []
                         slots = []
+                        # contém os identificadores de slots -> usado para dar os replaces no template text
 
                         ctx['t'] = t
 
                         for slot_name, slot_pos in t.slots:
                             so = aligned_data[slot_name]
+                            # dado que encaixa no slot?
                             slot = f'{slot_name}-{slot_pos}'
+                            # identificar do slot?
                             ctx['slot'] = slot
-                            refs = self.reg.refer(so, ctx, self.max_refs)
+                            scores, refs = self.reg.refer(so, ctx, self.max_refs)
+                            # conjunto de referências encontradas para o dado (so) dado o contexto (ctx) e limitado a uma quantidade (self.max_refs)
                             slots.append(slot)
                             all_refs.append(refs)
+                            all_scores.append(scores)
+
+                        all_refs_comb = list(product(*all_refs))
+                        all_scores_comb = [sum(scores) for scores in product(*all_scores)]
+
+                        selected_refs = sort_together([all_scores_comb, all_refs_comb], reverse=True)[1][:self.max_refs]
                         
                         for a_t in a:
                             ctx['seen'].add(a_t.subject)
                             ctx['seen'].add(a_t.object)
-                        for refs in product(*all_refs):
+
+                        for refs in selected_refs:
 
                             reg_data = {}
                             for slot, ref in zip(slots, refs):
@@ -198,9 +227,7 @@ class TextGenerationPipeline:
                         generated_text = ' '.join(sents)
                         if generated_text[-1] != '.':
                             generated_text = f'{generated_text} .'
-                        generated_text = preprocess_text(generated_text)
                         generated_score = self.score_text(generated_text.lower())
-                        # print(f'Text:{generated_score}\n\t{generated_text}')
 
                         if generated_score > best_score:
                             best_score = generated_score
@@ -227,7 +254,9 @@ def make_model(params, train_set):
                                     params['txs_lm_n'],
                                     params['txs_lm_name'])
     # 1.2 Template database
-    template_db = load_template_db(train_set, params.get('tdb_ns', None))
+    fallback_template = load_template_fallback(train_set, params['fallback_template'])
+    ns = params.get('tdb_ns', None)
+    template_db = load_template_db(train_set, fallback_template=fallback_template, ns=ns)
     # 1.3 Referring Expression Generation
     reg = load_referrer(train_set,
                         params['referrer'],
@@ -237,8 +266,7 @@ def make_model(params, train_set):
     # 1.5 Sentence Aggregation
     sa_scorer = load_sentence_aggregation(train_set, params['sa_scorer'], params['sa_scorer_n'])
     # 1.6 Template Fallback
-    fallback_template = load_template_fallback(train_set,
-                                               params['fallback_template'])
+    
 
     # Model
     tgp = TextGenerationPipeline(

@@ -25,7 +25,7 @@ from gerar_base_sentence_aggregation import *
 # _ = make_text_selection_lm(ds, 3, 'lower')
 # _ = make_text_selection_lm(ds, 4, 'lower')
 
-ds = ('train',)
+ds = ('train', 'dev')
 
 _ = make_dp_lm(ds, 2)
 _ = make_dp_lm(ds, 3)

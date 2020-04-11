@@ -3,6 +3,7 @@ from util import preprocess_so
 from random import Random
 from collections import Counter
 from functools import partial
+from more_itertools import sort_together
 import re
 
 
@@ -45,15 +46,18 @@ class FirstNameOthersPronounREG:
             return score
 
         if s not in ctx['seen']:
-            # sort by ref_lm
-            sorted_refs = sorted(refs_1st, key=score_reg, reverse=True)
+            scores = [score_reg(r) for r in refs_1st]
+            scores, sorted_refs = sort_together([scores, refs_1st], reverse=True)
 
-            return sorted_refs[:max_refs]
+            return scores[:max_refs], sorted_refs[:max_refs]
         else:
             if not refs_2nd:
-                sorted_refs = sorted(refs_1st, key=score_reg, reverse=True)
-                return sorted_refs[:max_refs]
-            # sort by ref_lm
-            sorted_refs = sorted(refs_2nd, key=score_reg, reverse=True)
+                scores = [score_reg(r) for r in refs_1st]
+                scores, sorted_refs = sort_together([scores, refs_1st], reverse=True)
 
-            return sorted_refs[:max_refs]
+                return scores[:max_refs], sorted_refs[:max_refs]
+
+            scores = [score_reg(r) for r in refs_2nd]
+            scores, sorted_refs = sort_together([scores, refs_2nd], reverse=True)
+
+            return scores[:max_refs], sorted_refs[:max_refs]

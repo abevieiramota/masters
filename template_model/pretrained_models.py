@@ -530,4 +530,4 @@ def make_sa_lm(db_names, n=2):
 def load_template_fallback(dataset_names, fallback_name):
 
     if fallback_name == 'jjt':
-        return JustJoinTemplate()
+        return JustJoinTemplate

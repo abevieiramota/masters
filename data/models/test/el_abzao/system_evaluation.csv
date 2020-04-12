@@ -1,0 +1,21 @@
+subset,references,metric,value
+old-cat,"[0, 1, 2]",bleu,55.22
+old-cat,"[0, 1, 2]",bleu_1,82.7
+old-cat,"[0, 1, 2]",bleu_2,63.2
+old-cat,"[0, 1, 2]",bleu_3,48.5
+old-cat,"[0, 1, 2]",bleu_4,37.6
+old-cat,"[0, 1, 2]",meteor,0.41573477189632807
+old-cat,"[0, 1, 2]",ter,0.4179908468120186
+old-cat,"[0, 1, 2]",avg_n_tokens,23.149330587023687
+old-cat,"[0, 1, 2]",avg_n_stop_words,0.2983361509031053
+old-cat,"[0, 1, 2]",macro_avg_n_stop_words,0.3057030270819192
+all-cat,"[0, 1, 2]",bleu,34.72
+all-cat,"[0, 1, 2]",bleu_1,58.6
+all-cat,"[0, 1, 2]",bleu_2,40.4
+all-cat,"[0, 1, 2]",bleu_3,29.1
+all-cat,"[0, 1, 2]",bleu_4,21.1
+all-cat,"[0, 1, 2]",meteor,0.3301331039984989
+all-cat,"[0, 1, 2]",ter,0.6898077774143263
+all-cat,"[0, 1, 2]",avg_n_tokens,26.10580021482277
+all-cat,"[0, 1, 2]",avg_n_stop_words,0.16793186446954267
+all-cat,"[0, 1, 2]",macro_avg_n_stop_words,0.19991397208138123

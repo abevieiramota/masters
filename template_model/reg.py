@@ -5,6 +5,7 @@ from collections import Counter
 from functools import partial
 from more_itertools import sort_together
 import re
+import logging
 
 
 RE_IS_NUMBER = re.compile(r'^[\d\.,]+$')
@@ -23,29 +24,30 @@ class FirstNameOthersPronounREG:
         self.ref_db = ref_db
         self.fallback = fallback
         self.score_ref = ref_lm.score
+        self.logger = logging.getLogger('FirstNameOthersPronounREG')
 
-    def refer(self, s, ctx, max_refs):
+    def refer(self, so, slot_name, slot_pos, template, max_refs):
 
-        refs_1st = self.ref_db['1st'].get(s, set())
-        refs_1st.add(self.fallback(s).lower())
-        refs_2nd = self.ref_db['2nd'].get(s, set())
+        refs_1st = self.ref_db['1st'].get(so, set())
+        refs_1st.add(self.fallback(so).lower())
+        refs_2nd = self.ref_db['2nd'].get(so, set())
 
-        slot = '{{{}}}'.format(ctx['slot'])
+        slot = '{{{}}}'.format(f'{slot_name}-{slot_pos}')
 
-        if RE_IS_NUMBER.match(s):
-            refs_1st.add(s)
-            refs_2nd.add(s)
+        if RE_IS_NUMBER.match(so):
+            refs_1st.add(so)
+            refs_2nd.add(so)
 
         def score_reg(r):
 
-            text = ctx['t'].template_text.replace(slot, r.replace(' ', '_'))
-
+            text = template.template_text.replace(slot, r.replace(' ', '_'))
             score = self.score_ref(text)
-            # print(f'REG: {score}\n\t{text}')
+
+            self.logger.debug(f'{score:.3f} -> {text}')
 
             return score
 
-        if s not in ctx['seen']:
+        if slot_pos == '0':
             scores = [score_reg(r) for r in refs_1st]
             scores, sorted_refs = sort_together([scores, refs_1st], reverse=True)
 

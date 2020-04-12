@@ -39,31 +39,29 @@ def abstract_triples(triples, slot_template=SLOT_NAME):
 
 class JustJoinTemplate:
 
-    def __init__(self):
+    def __init__(self, predicate):
 
-        self.template_text = '{AGENT-1-1} {p} {PATIENT-1-1}.'
+        self.template_text = '{} ' + predicate + ' {}.'
         # FIXME: adicionado apenas para fazer funcionar o len(t.template_triples)
         #    para calcular o tamanho do template
-        self.slots = [('AGENT-1', 1), ('PATIENT-1', 1)]
+        self.slots = [('slot-0', 1), ('slot-1', 1)]
 
-    def fill(self, reg_data, triples):
+    def fill(self, refs):
 
-        if len(triples) != 1:
+        if len(refs) != 2:
             raise ValueError(f'This template only accepts data w/ 1 triple.'
                              f' Passed {triples}')
 
-        t = triples[0]
+        return self.template_text.format(*refs)
 
-        s = reg_data['AGENT-1-1']
-        p = preprocess_so(t.predicate)
-        o = reg_data['PATIENT-1-1']
-
-        return f'{s} {p} {o}.'
+    @property
+    def slots_placeholders(self):
+        return (f'{slot_name}-{slot_pos}' for slot_name, slot_pos in self.slots)
 
     def align(self, triples):
 
-        return {'AGENT-1': triples[0].subject,
-                'PATIENT-1': triples[0].object}
+        return {'slot-0': triples[0].subject,
+                'slot-1': triples[0].object}
 
     def __repr__(self):
         return 'template {s} {p} {o}.'
@@ -75,7 +73,7 @@ class TemplateDatabase:
 
         self.template_db_data = template_db_data 
         self.categories = set(c for (c, _) in template_db_data.keys())
-        self.template_fallback = [template_fallback]
+        self.template_fallback = template_fallback
 
     def select(self, category, triples):
         
@@ -91,7 +89,7 @@ class TemplateDatabase:
         if ts:
             return ts 
         elif len(triples) == 1:
-            return self.template_fallback
+            return [self.template_fallback(triples[0].predicate)]
         else:
             return []
 
@@ -105,7 +103,9 @@ class Template:
         # pairs of (slot-name, slot-n-occurrence)
         self.slots = RE_FIND_SLOT_DEF.findall(self.template_text)
 
-    def fill(self, reg_data, triples=None):
+    def fill(self, refs):
+
+        reg_data = dict(zip(self.slots_placeholders, refs))
 
         return self.template_text.format(**reg_data)
 
@@ -127,6 +127,10 @@ class Template:
                 positioned_data[tt.object] = it.object
 
         return positioned_data
+
+    @property
+    def slots_placeholders(self):
+        return (f'{slot_name}-{slot_pos}' for slot_name, slot_pos in self.slots)
 
     def __hash__(self):
 

@@ -5,9 +5,15 @@ import pickle
 from reading_thiagos_templates import load_shared_task_test, Entry
 from gerar_base_sentence_aggregation import SentenceAggregationFeatures
 from gerar_base_discourse_planning import DiscoursePlanningFeatures
+import logging
 import sys
 sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, evaluate_system
+
+
+log_level = sys.argv[1] if len(sys.argv) > 1 else 'INFO'
+
+logging.basicConfig(level=log_level)
 
 
 params = {
@@ -21,8 +27,8 @@ params = {
         'sa_scorer_n': 3,
         'max_dp': 5,
         'max_sa': 5,
-        'max_tems': 5,
-        'max_refs': 5,
+        'max_tems': 1,
+        'max_refs': 2,
         'fallback_template': 'jjt',
         'referrer': 'abe',
         'referrer_lm_n': 4,

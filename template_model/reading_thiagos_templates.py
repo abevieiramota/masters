@@ -6,12 +6,32 @@ import pickle
 import glob
 import xml.etree.ElementTree as ET
 import os
+from unidecode import unidecode
+
+
+TOKENIZER_RE = re.compile(r'(\W)')
+def normalize_text(text):
+
+    lex_detokenised = ' '.join(TOKENIZER_RE.split(text))
+    lex_detokenised = ' '.join(lex_detokenised.split())
+
+    return unidecode(lex_detokenised.lower())
+
+
 RE_SPLIT_DOT_COMMA = re.compile(r'([\.,\'])')
 
 
 def preprocess_text(t):
 
-    return ' '.join(' '.join(RE_SPLIT_DOT_COMMA.split(t)).split())
+    tt = (' '.join(' '.join(RE_SPLIT_DOT_COMMA.split(t)).split())).replace('@', '').lower()
+
+    tt = normalize_thiagos_template(tt)
+
+    # se há um ponto final grudado numa palavra, separa ele da palavra que vem antes
+    if tt[-1] == '.' and tt[-2] != ' ':
+        tt = f'{tt[:-1]} .'
+    
+    return tt
 
 
 # usado na extração de expressões de referência
@@ -58,8 +78,6 @@ MAP_REF_TYPE_TO_KEY = dict(description='D',
 def extract_templates(dataset):
 
     entries_templates = []
-    extraction_error = []
-
     dataset_w_entity_map = [e for e in dataset if e.entity_map]
 
     for e in dataset_w_entity_map:
@@ -82,48 +100,16 @@ def extract_templates(dataset):
                                l['template'],
                                e.entity_map)
 
-            if not ts:
-                extraction_error.append((e, l))
-            else:
+            if ts:
                 lexes_templates.append((l, ts))
 
         if lexes_templates:
             entries_templates.append((e, lexes_templates))
 
-    return entries_templates, extraction_error
-
-
-def make_template_lm_texts(entries_templates):
-
-    template_lm_texts = []
-
-    for i, (e, lexes_templates) in enumerate(entries_templates):
-
-        for l, ts in lexes_templates:
-
-            for tem, triples in zip(ts, l['sorted_triples']):
-
-                if tem:
-
-                    map_slot_id = {}
-                    for t, template_t in zip(triples, tem.template_triples):
-                        map_slot_id[template_t.subject] = t.subject
-                        map_slot_id[template_t.object] = t.object
-
-                    reg_data = {}
-                    for slot_name, slot_pos in tem.slots:
-
-                        reg_data[f'{slot_name}-{slot_pos}'] = map_slot_id[slot_name].replace(' ', '_')
-
-                    text = tem.fill(reg_data)
-
-                    template_lm_texts.append(text)
-
-    return template_lm_texts
+    return entries_templates
 
 
 def normalize_thiagos_template(s):
-    # removes single space between an entity and a dot or a comma
 
     s = RE_SPACE_BEFORE_COMMA_DOT.sub('', s)
 
@@ -158,9 +144,7 @@ def delexicalize_triples(triples, entity_map):
     return delexicalized_triples
 
 
-def make_template(sorted_triples,
-                  template_text,
-                  entity_map):
+def make_template(sorted_triples, template_text, entity_map):
 
     templates = []
 
@@ -172,48 +156,65 @@ def make_template(sorted_triples,
     else:
         template_sens = sent_tokenize(template_text)
 
+    # se a quantidade de partes de triplas é diferente da quantidade de sentenças, retorna vazio
     if len(sorted_triples) != len(template_sens):
         return []
 
     for template_sen, triples_sen in zip(template_sens, sorted_triples):
 
+        # triplas em que os sujeito/objeto foram substituídos pelos identificadores de slot (PATIENT-1 etc)
         delexicalized_triples = delexicalize_triples(triples_sen, entity_map)
+        # triplas em que os sujeito/objeto foram substituídos por slots (slot-0, slot-1 etc), de acordo com a modelagem da solução
         abstracted_triples = abstract_triples(triples_sen)
 
         assert len(delexicalized_triples) == len(abstracted_triples)
 
+        # map para fazer a tradução de um slot na modelagem do Tiago para a modelagem da solução
+        #    ex: PATIENT-1 -> slot-2
         map_template_key_to_slot = {}
         for d, a in zip(delexicalized_triples, abstracted_triples):
             map_template_key_to_slot[d.subject] = a.subject
             map_template_key_to_slot[d.object] = a.object
 
+        # contador responsável por contar quantas ocorrências de uma entidade já foram vistas
         entity_ref_counter = Counter()
 
+        # extrai as ocorrências de slots na modelagem do Tiago nos templates
         keys_in_template_sen = RE_MATCH_TEMPLATE_KEYS.findall(template_sen)
 
+        # filtro para remover casos em que a quantidade de slots é maior que a de sujeitos/objetos
         if len(keys_in_template_sen) > 2*len(triples_sen):
             templates.append(None)
             continue
 
-        if not all(k in map_template_key_to_slot for k in keys_in_template_sen):
+        # se houver algum slot no template que não está mapeado, também filtra
+        if any(k not in map_template_key_to_slot for k in keys_in_template_sen):
             templates.append(None)
             continue
 
+        # para cada slot encontrado no template do Tiago
         for key in keys_in_template_sen:
+            # quantidade de vezes que essa entidade já foi referenciada
             i_occurrence = entity_ref_counter[key]
+            # slot na minha modelagem, identificando uma entidade ex: slot-0
             slot = map_template_key_to_slot[key]
+            # slot na minha modelagem, identificando uma entidade e quantas vezes já foi referenciada ex: slot-0-1
             s_slot = SLOT_PLACEHOLDER.format(slot, i_occurrence)
+            # substitui no template o slot do Tiago pelo meu slot
             template_sen = template_sen.replace(key, s_slot, 1)
-
+            # incrementa o contador de referências da entidade
             entity_ref_counter[key] += 1
 
-        slots = {t.subject
-                 for t in abstracted_triples} | {t.object
-                                                 for t in abstracted_triples}
+        # slots existentes
+        slots = set() 
+        for t in abstracted_triples:
+            slots.add(t.subject)
+            slots.add(t.object)
 
+        # checa se todos os slots aparecem no template
         if all(slot in template_sen for slot in slots):
             # removes @ -> looks like an error
-            template_sen = preprocess_text(template_sen.replace('@', '').lower())
+            template_sen = preprocess_text(template_sen)
             t = Template(abstracted_triples, template_sen)
 
             templates.append(t)

@@ -11,10 +11,9 @@ from pretrained_models import (
         load_template_db,
         load_discourse_planning,
         load_sentence_aggregation,
-        load_template_fallback
+        load_template_fallback,
+        text_to_id
 )
-from gerar_base_sentence_aggregation import SentenceAggregationFeatures
-from gerar_base_discourse_planning import DiscoursePlanningFeatures
 from reading_thiagos_templates import Entry
 from random import Random
 import logging
@@ -22,6 +21,16 @@ import re
 import sys
 sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, bleu
+from unidecode import unidecode
+
+
+TOKENIZER_RE = re.compile(r'(\W)')
+def normalize_text(text):
+
+    lex_detokenised = ' '.join(TOKENIZER_RE.split(text))
+    lex_detokenised = ' '.join(lex_detokenised.split())
+
+    return unidecode(lex_detokenised.lower())
 
 
 
@@ -87,7 +96,7 @@ class TextGenerationPipeline:
     def score_template(self, t, a):
 
         aligned_data = t.align(a)
-        refs = [aligned_data[slot_name] for slot_name, _ in t.slots]
+        refs = [text_to_id(aligned_data[slot_name]) for slot_name, _ in t.slots]
         text = t.fill(refs)
         score = self.tems_lm.score(text) / self.length_penalty(text.split())
 
@@ -113,8 +122,8 @@ class TextGenerationPipeline:
         sents = []
         for triple in entry.triples:
             template = self.fallback_template(triple.predicate)
-            s_ref = self.reg.refer(triple.subject, 'slot-0', '0', template, 1)[0]
-            o_ref = self.reg.refer(triple.object, 'slot-1', '0', template, 1)[0]
+            s_ref = self.reg.refer(triple.subject, 'slot-0', '0', template, 1)[1][0]
+            o_ref = self.reg.refer(triple.object, 'slot-1', '0', template, 1)[1][0]
 
             sent = template.fill([s_ref, o_ref])
             sents.append(sent)
@@ -174,21 +183,9 @@ class TextGenerationPipeline:
         best_text = None
         best_score = float('-inf')
 
-        n_dp_used = 0
         for dp in self.select_dp(entry)[:self.max_dp]:
-            if n_dp_used == self.max_dp:
-                break
-
-            n_sa_used = 0
             for sa in self.select_sa(dp)[:self.max_sa]:
-                if n_sa_used == self.max_sa:
-                    break 
-
-                templates = self.select_templates(entry, sa)
-                if templates:
-                    n_sa_used += 1
-
-                for ts in templates:
+                for ts in self.select_templates(entry, sa):
                     # combinação de templates para um particionamento
                     all_sent_texts = []
 
@@ -215,9 +212,6 @@ class TextGenerationPipeline:
                         if generated_score > best_score:
                             best_score = generated_score
                             best_text = generated_text
-
-            if n_sa_used > 0:
-                n_dp_used += 1
 
         if not best_text:
             best_text = self.make_fallback_text(entry)

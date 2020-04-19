@@ -3,36 +3,6 @@ from reading_thiagos_templates import load_dataset
 from more_itertools import flatten
 
 
-def extract_orders(e):
-
-    orders = []
-
-    lexes_not_good = []
-    lexes_wo_sorted_triples = []
-    lexes_w_wrong_sorted_triples = []
-
-    for l in e.lexes:
-
-        if l['comment'] != 'good':
-            lexes_not_good.append(l)
-
-        if not l['sorted_triples']:
-            lexes_wo_sorted_triples.append(l)
-
-        if l['comment'] == 'good' and l['sorted_triples']:
-
-            order = tuple(flatten(l['sorted_triples']))
-            if len(order) == len(e.triples):
-                orders.append(order)
-            else:
-                lexes_w_wrong_sorted_triples.append(l)
-
-    return (orders,
-            lexes_not_good,
-            lexes_wo_sorted_triples,
-            lexes_w_wrong_sorted_triples)
-
-
 def acc_same_order_as_triples(dp_db):
 
     tp = sum(1 for ts, sorteds_ts in dp_db

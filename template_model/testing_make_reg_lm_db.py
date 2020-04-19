@@ -4,6 +4,16 @@ from collections import Counter
 import sys
 sys.path.append('../evaluation')
 from evaluate import normalize_text
+from unidecode import unidecode
+
+
+TOKENIZER_RE = re.compile(r'(\W)')
+def normalize_text(text):
+
+    lex_detokenised = ' '.join(TOKENIZER_RE.split(text))
+    lex_detokenised = ' '.join(lex_detokenised.split())
+
+    return unidecode(lex_detokenised.lower())
 
 
 RE_MATCH_TEMPLATE_KEYS_LEX = re.compile((r'(AGENT\\-\d|PATIENT\\-\d'
@@ -81,7 +91,7 @@ def extract_text_reg_lm(l):
     if m:
 
         captureds = m.groupdict()
-        as_keys = {k: v.strip().replace(' ', '_').lower() for k, v in captureds.items()}
+        as_keys = {k: normalize_text(v).replace(' ', '_') for k, v in captureds.items()}
 
-        return to_fill.format(**as_keys)
+        return to_fill.format(**as_keys).lower()
     return None

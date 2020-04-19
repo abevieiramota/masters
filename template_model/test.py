@@ -3,8 +3,6 @@ from plain_experimento import make_model
 import os
 import pickle
 from reading_thiagos_templates import load_shared_task_test, Entry
-from gerar_base_sentence_aggregation import SentenceAggregationFeatures
-from gerar_base_discourse_planning import DiscoursePlanningFeatures
 import logging
 import sys
 sys.path.append('../evaluation')
@@ -25,15 +23,15 @@ params = {
         'dp_scorer_n': 4,
         'sa_scorer': 'markov',
         'sa_scorer_n': 3,
-        'max_dp': 5,
-        'max_sa': 5,
-        'max_tems': 1,
-        'max_refs': 2,
+        'max_dp': 10,
+        'max_sa': 10,
+        'max_tems': 4,
+        'max_refs': 4,
         'fallback_template': 'jjt',
         'referrer': 'abe',
         'referrer_lm_n': 4,
         'lp_n': 0,
-        'lp_a': 0
+        'lp_a': 1
 }
 
 tgp = make_model(params, ('train', 'dev'))

@@ -6,6 +6,16 @@ from functools import partial
 from more_itertools import sort_together
 import re
 import logging
+from unidecode import unidecode
+
+
+TOKENIZER_RE = re.compile(r'(\W)')
+def normalize_text(text):
+
+    lex_detokenised = ' '.join(TOKENIZER_RE.split(text))
+    lex_detokenised = ' '.join(lex_detokenised.split())
+
+    return unidecode(lex_detokenised.lower())
 
 
 RE_IS_NUMBER = re.compile(r'^[\d\.,]+$')
@@ -20,16 +30,19 @@ class EmptyREGer:
 
 class FirstNameOthersPronounREG:
 
-    def __init__(self, ref_db, ref_lm, fallback=preprocess_so):
+    def __init__(self, ref_db, ref_lm):
         self.ref_db = ref_db
-        self.fallback = fallback
         self.score_ref = ref_lm.score
         self.logger = logging.getLogger('FirstNameOthersPronounREG')
+    
+    def fallback(self, so):
+
+        return normalize_text(preprocess_so(so))
 
     def refer(self, so, slot_name, slot_pos, template, max_refs):
 
         refs_1st = self.ref_db['1st'].get(so, set())
-        refs_1st.add(self.fallback(so).lower())
+        refs_1st.add(self.fallback(so))
         refs_2nd = self.ref_db['2nd'].get(so, set())
 
         slot = '{{{}}}'.format(f'{slot_name}-{slot_pos}')
@@ -43,7 +56,7 @@ class FirstNameOthersPronounREG:
             text = template.template_text.replace(slot, r.replace(' ', '_'))
             score = self.score_ref(text)
 
-            self.logger.debug(f'{score:.3f} -> {text}')
+            self.logger.debug(f'{score:.3f} -> {r} -> {text}')
 
             return score
 

@@ -5,10 +5,7 @@ import re
 
 
 RE_FIND_SLOT_DEF = re.compile((r'\{(?P<slot_name>slot\d)\-(?P<slot_pos>\d)\}'))
-
-
 SLOT_NAME = 'slot{}'
-
 Triple = namedtuple('Triple', ['subject', 'predicate', 'object'])
 
 
@@ -41,7 +38,7 @@ class JustJoinTemplate:
 
     def __init__(self, predicate):
 
-        self.template_text = '{} ' + predicate + ' {}.'
+        self.template_text = '{} ' + preprocess_so(predicate) + ' {}.'
         # FIXME: adicionado apenas para fazer funcionar o len(t.template_triples)
         #    para calcular o tamanho do template
         self.slots = [('slot-0', 1), ('slot-1', 1)]

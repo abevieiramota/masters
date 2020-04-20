@@ -7,6 +7,7 @@ import glob
 import xml.etree.ElementTree as ET
 import os
 from preprocessing import *
+from more_itertools import flatten
 
 
 # usado na extração de expressões de referência
@@ -270,10 +271,15 @@ def extract_shared_task_lexes(entry_elem):
       lexes.append(lex)
    return tuple(lexes)
 
-def load_dataset(dataset_name):
 
-    with open(os.path.join(BASE_DIR,
-                           f'../evaluation/{dataset_name}.pkl'), 'rb') as f:
+def load_datasets(db_names):
+
+    return list(flatten(load_dataset(db_name) for db_name in db_names))
+
+
+def load_dataset(db_name):
+
+    with open(os.path.join(BASE_DIR, f'../evaluation/{db_name}.pkl'), 'rb') as f:
         dataset = pickle.load(f)
 
     return dataset

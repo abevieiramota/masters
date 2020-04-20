@@ -9,8 +9,6 @@ import logging
 from unidecode import unidecode
 
 
-RE_IS_NUMBER = re.compile(r'^[\d\.,]+$')
-
 class PreprocessREG:
     def __init__(self):
         self.logger = logging.getLogger('PreprocessREG')
@@ -22,14 +20,14 @@ class PreprocessREG:
 
 class EmptyREGer:
     def refer(self, so, slot_name, slot_pos, template, max_refs):
-        return ''
+        return [1.0], ['']
 
 
 class FirstSecondREG:
 
     def __init__(self, ref_db, ref_lm):
         self.ref_db = ref_db
-        self.score_ref = ref_lm.score
+        self.ref_lm = ref_lm
         self.logger = logging.getLogger('FirstNameOthersPronounREG')
     
     def fallback(self, so):
@@ -40,37 +38,29 @@ class FirstSecondREG:
 
         refs_1st = self.ref_db['1st'].get(so, set())
         refs_1st.add(self.fallback(so))
+
         refs_2nd = self.ref_db['2nd'].get(so, set())
 
         slot = '{{{}}}'.format(f'{slot_name}-{slot_pos}')
-
-        if RE_IS_NUMBER.match(so):
-            refs_1st.add(so)
-            refs_2nd.add(so)
 
         def score_reg(r):
 
             ref_id = text_to_id(r)
             text = template.template_text.replace(slot, ref_id)
-            score = self.score_ref(text)
+            score = self.ref_lm.score(text)
 
             self.logger.debug(f'{score:.3f} -> {ref_id} -> {text}')
 
             return score
 
-        if slot_pos == '0':
-            scores = [score_reg(r) for r in refs_1st]
-            scores, sorted_refs = sort_together([scores, refs_1st], reverse=True)
-
-            return scores[:max_refs], sorted_refs[:max_refs]
+        if slot_pos == '0' or not refs_2nd:
+            refs = refs_1st 
         else:
-            if not refs_2nd:
-                scores = [score_reg(r) for r in refs_1st]
-                scores, sorted_refs = sort_together([scores, refs_1st], reverse=True)
+            refs = refs_2nd
 
-                return scores[:max_refs], sorted_refs[:max_refs]
+        refs = refs_1st | refs_2nd
 
-            scores = [score_reg(r) for r in refs_2nd]
-            scores, sorted_refs = sort_together([scores, refs_2nd], reverse=True)
+        scores = [score_reg(r) for r in refs]
+        scores, sorted_refs = sort_together([scores, refs], reverse=True)
 
-            return scores[:max_refs], sorted_refs[:max_refs]
+        return scores[:max_refs], sorted_refs[:max_refs]

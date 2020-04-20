@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from reading_thiagos_templates import (
         load_dataset,
+        load_datasets,
         Entry,
         extract_templates,
         get_lexicalizations
@@ -9,7 +10,6 @@ import os
 import pickle
 from collections import defaultdict, Counter, namedtuple
 from reg import EmptyREGer, FirstSecondREG, PreprocessREG
-from more_itertools import flatten
 import subprocess
 from random import shuffle
 from template_based import JustJoinTemplate, TemplateDatabase
@@ -53,24 +53,17 @@ def load_abe_referrer_counters(db_names):
 
     ref_db = defaultdict(lambda: defaultdict(set))
     for db_name in db_names:
-        data = load_abe_ref_dbs(db_name)
+        filename = f'abe_referrer_counter_{db_name}'
+        referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
+
+        with open(referrer_db_filepath, 'rb') as f:
+            data = pickle.load(f)
 
         for type_, entity_c in data.items():
             for entity, c in entity_c.items():
                 ref_db[type_][entity].update(c)
 
     return ref_db
-
-
-def load_abe_ref_dbs(db_name):
-
-    filename = f'abe_referrer_counter_{db_name}'
-    referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
-
-    with open(referrer_db_filepath, 'rb') as f:
-        data = pickle.load(f)
-
-    return data
 
 
 def load_reg_lm(db_names, n):
@@ -91,7 +84,7 @@ def make_reg_lm(db_names, n):
     texts_filepath = os.path.join(PRETRAINED_DIR, texts_filename)
 
     if not os.path.isfile(texts_filepath):
-        dataset = list(flatten(load_dataset(db_name) for db_name in db_names))
+        dataset = load_datasets(db_names)
         texts = []
 
         for e in dataset:
@@ -218,7 +211,7 @@ def make_template_selection_lm(db_names, n, lm_name):
     texts_filepath = os.path.join(PRETRAINED_DIR, texts_filename)
 
     if not os.path.isfile(texts_filepath):
-        dataset = list(flatten(load_dataset(ds_name) for ds_name in db_names))
+        dataset = load_datasets(db_names)
 
         e_t = extract_templates(dataset)
         tems_lm_texts = make_template_lm_texts(e_t)
@@ -240,48 +233,43 @@ def make_template_selection_lm(db_names, n, lm_name):
 
 # Text Selection Language Models
 @lru_cache(maxsize=10)
-def load_text_selection_lm(dataset_names, n, lm_name):
+def load_text_selection_lm(db_names, n, lm_name):
+
+    db_names_id = '_'.join(sorted(db_names))
 
     if lm_name == 'random':
-
         return RANDOM_LM
 
     if lm_name == 'markov':
 
-        lm_filename = 'txs_lm_model_markov_{}_{}.arpa'\
-            .format(n, '_'.join(sorted(dataset_names)))
+        lm_filename = f'txs_lm_model_markov_{n}_{db_names_id}.arpa'
         lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
 
         return kenlm.Model(lm_filepath)
 
     if lm_name == 'inv_markov':
 
-        lm_filename = 'txs_lm_model_markov_{}_{}.arpa'\
-            .format(n, '_'.join(sorted(dataset_names)))
-        lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+        lm = load_text_selection_lm(db_names, n, lm_name)
 
-        lm = kenlm.Model(lm_filepath)
-
-        def inv_score(t, bos, eos):
-            return -1*lm.score(t, bos=bos, eos=eos)
+        def inv_score(t):
+            return -1*lm.score(t)
 
         return LM(inv_score)
 
 
-def make_text_selection_lm(dataset_names,
-                           n,
-                           lm_name):
+def make_text_selection_lm(db_names, n, lm_name):
 
-    texts_filename = 'txs_lm_texts_{}_{}.txt'\
-        .format(lm_name, '_'.join(sorted(dataset_names)))
+    db_names_id = '_'.join(sorted(db_names))
+
+    texts_filename = f'txs_lm_texts_{db_names_id}.txt'
     texts_filepath = os.path.join(PRETRAINED_DIR, texts_filename)
+
     if not os.path.isfile(texts_filepath):
-        dataset = list(flatten(load_dataset(ds_name)
-                               for ds_name in dataset_names))
+        dataset = load_datasets(db_names)
         txs_lm_texts = [normalize_thiagos_template(l['text'].lower())
                         for e in dataset
                         for l in e.lexes
-                        if l['comment'] == 'good' and l['text']]
+                        if l['comment'] == 'good']
         txs_lm_texts = [normalize_text(t) for t in txs_lm_texts]
 
         with open(texts_filepath, 'w', encoding='utf-8') as f:
@@ -292,9 +280,9 @@ def make_text_selection_lm(dataset_names,
                                         stdout=subprocess.PIPE,
                                         input=f.read())
 
-    lm_filename = 'txs_lm_model_{}_{}_{}.arpa'\
-        .format(lm_name, n, '_'.join(sorted(dataset_names)))
+    lm_filename = f'txs_lm_model_{lm_name}_{n}_{db_names_id}.arpa'
     lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
+
     with open(lm_filepath, 'wb') as f:
         f.write(txs_lm_process.stdout)
 
@@ -322,7 +310,7 @@ def load_template_db(db_names, fallback_template=None, ns=None):
 def make_template_db(db_names):
 
     db_names_id = '_'.join(sorted(db_names))
-    dataset = list(flatten(load_dataset(ds_name) for ds_name in db_names))
+    dataset = load_datasets(db_names)
     e_t = extract_templates(dataset)
 
     template_db = defaultdict(set)
@@ -424,14 +412,14 @@ def make_dp_lm(db_names, n=2):
     # constrói o modelo de scoring de discourse plans
 
     # lê as entradas dos bancos de nomes em db_names
-    db = flatten(load_dataset(db_name) for db_name in db_names)
+    dataset = load_datasets(db_names)
     db_names_id = '_'.join(sorted(db_names))
 
     orders = []
 
     # para cada entrada, com len(triples) >= 2, extrai as ordens com que as triplas
     #    foram verbalizadas 
-    for e in db:
+    for e in dataset:
         if len(e.triples) >= 2:
             order = extract_orders(e)
             orders.extend(order)
@@ -456,8 +444,6 @@ def make_dp_lm(db_names, n=2):
 
 
 # Sentence Aggregation
-
-
 
 def preprocess_to_sa_model(triples_partitioned):
 
@@ -508,12 +494,12 @@ def extract_partitionings(e):
     
 def make_sa_lm(db_names, n=2):
 
-    db = flatten(load_dataset(db_name) for db_name in db_names)
+    dataset = load_datasets(db_names)
     db_names_id = '_'.join(sorted(db_names))
 
     sas = []
 
-    for e in (e for e in db if len(e.triples) >= 2):
+    for e in (e for e in dataset if len(e.triples) >= 2):
         partitionings = extract_partitionings(e)
         sas.extend(partitionings)
 

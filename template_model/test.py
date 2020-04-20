@@ -23,15 +23,15 @@ params = {
         'dp_scorer_n': 4,
         'sa_scorer': 'markov',
         'sa_scorer_n': 3,
-        'max_dp': 1,
-        'max_sa': 1,
-        'max_tems': 1,
-        'max_refs': 1,
+        'max_dp': 3,
+        'max_sa': 3,
+        'max_tems': 3,
+        'max_refs': 3,
         'fallback_template': 'jjt',
         'referrer': 'abe',
         'referrer_lm_n': 4,
         'lp_n': 0,
-        'lp_a': 0
+        'lp_a': 1
 }
 
 tgp = make_model(params, ('train', 'dev'))
@@ -44,14 +44,12 @@ if not os.path.isdir(outdir):
     os.mkdir(outdir)
 
 # save its hyperparameters
-parameters_outpath = (f"../data/models/test/{model_name}/"
-                      f"params.pkl")
+parameters_outpath = (f"../data/models/test/{model_name}/params.pkl")
 
 with open(parameters_outpath, 'wb') as f:
     pickle.dump(params, f)
 
-texts_outpath = (f"../data/models/test/{model_name}/"
-                 f"{model_name}.txt")
+texts_outpath = (f"../data/models/test/{model_name}/{model_name}.txt")
 
 test = load_shared_task_test()
 
@@ -69,8 +67,7 @@ with open(texts_outpath, 'w', encoding='utf-8') as f:
 
 end = time.time()
 elapsed_time = end - ini 
-with open((f"../data/models/test/{model_name}/"
-            f"elapsed_time.txt"), 'w') as f:
+with open((f"../data/models/test/{model_name}/elapsed_time.txt"), 'w') as f:
     f.write(f'{elapsed_time}')
 
 preprocess_model_to_evaluate(texts_outpath, 'test')

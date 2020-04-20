@@ -3,51 +3,27 @@ from reading_thiagos_templates import (
         load_dataset,
         Entry,
         extract_templates,
-        get_lexicalizations,
-        normalize_thiagos_template
+        get_lexicalizations
 )
 import os
 import pickle
 from collections import defaultdict, Counter, namedtuple
-from reg import EmptyREGer, FirstNameOthersPronounREG
+from reg import EmptyREGer, FirstSecondREG, PreprocessREG
 from more_itertools import flatten
 import subprocess
 from random import shuffle
 from template_based import JustJoinTemplate, TemplateDatabase
 from random import randint
-from util import preprocess_so
 from functools import lru_cache
 from testing_make_reg_lm_db import extract_text_reg_lm
 import re
-from unidecode import unidecode
 import kenlm
+from preprocessing import *
 
-
-def text_to_id(text):
-
-    return text.replace(' ', '_')
-
-
-TOKENIZER_RE = re.compile(r'(\W)')
-def normalize_text(text):
-
-    lex_detokenised = ' '.join(TOKENIZER_RE.split(text))
-    lex_detokenised = ' '.join(lex_detokenised.split())
-
-    return unidecode(lex_detokenised.lower())
-
-RE_SPLIT_DOT_COMMA = re.compile(r'([\.,\'])')
-
-
-def preprocess_text(t):
-
-    return ' '.join(' '.join(RE_SPLIT_DOT_COMMA.split(t)).split())
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PRETRAINED_DIR = os.path.join(BASE_DIR, '../data/pretrained_models')
-THIAGOS_REFERRER_COUNTER_FILENAME = 'thiagos_referrer_counter_{}'
-ABE_REFERRER_COUNTER_FILENAME = 'abe_referrer_counter_{}'
 KENLM = os.path.join(BASE_DIR, '../../kenlm/build/bin/lmplz')
 
 LM = namedtuple('LM', ['score'])
@@ -56,31 +32,28 @@ RANDOM_LM = LM(lambda t: randint(0, 100000))
 
 # Referring Expression Generation
 @lru_cache(maxsize=10)
-def load_referrer(dataset_names, referrer_name, reg_lm_n=None):
+def load_referrer(db_names, referrer_name, reg_lm_n=None):
 
     if referrer_name == 'preprocess_so':
-        class REG_:
-            def refer(s, slot_pos, slot_type, ctx):
-                return preprocess_so(s)
-        return REG_()
+        return PreprocessREG()
 
     if referrer_name == 'empty':
         return EmptyREGer()
 
     if referrer_name == 'abe':
-        ref_db = load_abe_referrer_counters(dataset_names)
-        ref_lm = load_reg_lm(dataset_names, reg_lm_n)
+        ref_db = load_abe_referrer_counters(db_names)
+        ref_lm = load_reg_lm(db_names, reg_lm_n)
 
-        reger = FirstNameOthersPronounREG(ref_db, ref_lm)
+        reger = FirstSecondREG(ref_db, ref_lm)
 
         return reger
 
 
-def load_abe_referrer_counters(dataset_names):
+def load_abe_referrer_counters(db_names):
 
     ref_db = defaultdict(lambda: defaultdict(set))
-    for dataset_name in dataset_names:
-        data = load_abe_ref_dbs(dataset_name)
+    for db_name in db_names:
+        data = load_abe_ref_dbs(db_name)
 
         for type_, entity_c in data.items():
             for entity, c in entity_c.items():
@@ -89,9 +62,9 @@ def load_abe_referrer_counters(dataset_names):
     return ref_db
 
 
-def load_abe_ref_dbs(dataset_name):
+def load_abe_ref_dbs(db_name):
 
-    filename = ABE_REFERRER_COUNTER_FILENAME.format(dataset_name)
+    filename = f'abe_referrer_counter_{db_name}'
     referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
 
     with open(referrer_db_filepath, 'rb') as f:
@@ -100,42 +73,36 @@ def load_abe_ref_dbs(dataset_name):
     return data
 
 
-def load_reg_lm(dataset_names, reg_lm_n):
+def load_reg_lm(db_names, n):
 
-    import kenlm
+    db_names_id = '_'.join(sorted(db_names))
 
-    lm_filename = 'reg_lm_model_{}_{}.arpa'\
-        .format(reg_lm_n, '_'.join(sorted(dataset_names)))
+    lm_filename = f'reg_lm_model_{n}_{db_names_id}.arpa'
     lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
 
     return kenlm.Model(lm_filepath)
 
 
-def make_reg_lm(dataset_names, n):
+def make_reg_lm(db_names, n):
 
-    texts_filename = 'reg_lm_texts_{}.txt'\
-        .format('_'.join(sorted(dataset_names)))
+    db_names_id = '_'.join(sorted(db_names))
+
+    texts_filename = f'reg_lm_texts_{db_names_id}.txt'
     texts_filepath = os.path.join(PRETRAINED_DIR, texts_filename)
 
-    w_error = []
-
     if not os.path.isfile(texts_filepath):
-        dataset = list(flatten(load_dataset(ds_name)
-                               for ds_name in dataset_names))
+        dataset = list(flatten(load_dataset(db_name) for db_name in db_names))
         texts = []
 
         for e in dataset:
 
-            good_lexes = [l for l in e.lexes
-                          if l['comment'] == 'good']
+            good_lexes = [l for l in e.lexes if l['comment'] == 'good']
 
             for l in good_lexes:
 
-                t = extract_text_reg_lm(l)
+                t = extract_text_reg_lm(l['text'], l['template'])
                 if t:
                     texts.append(t)
-                else:
-                    w_error.append(l)
 
         with open(texts_filepath, 'w', encoding='utf-8') as f:
             for t in texts:
@@ -146,41 +113,32 @@ def make_reg_lm(dataset_names, n):
                                         stdout=subprocess.PIPE,
                                         input=f.read())
 
-    lm_filename = 'reg_lm_model_{}_{}.arpa'\
-        .format(n, '_'.join(sorted(dataset_names)))
+    lm_filename = f'reg_lm_model_{n}_{db_names_id}.arpa'
     lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
 
     with open(lm_filepath, 'wb') as f:
         f.write(reg_lm_process.stdout)
 
-    return w_error
 
+def make_pretrained_abe_ref_dbs(db_name):
 
-def make_pretrained_abe_ref_dbs(dataset_name):
-
-    dataset = load_dataset(dataset_name)
+    dataset = load_dataset(db_name)
 
     ref_db = defaultdict(lambda: defaultdict(set))
 
-    w_errors = []
     lex_keys = set()
 
     for e in dataset:
 
-        good_lexes = [l for l in e.lexes
-                      if l['comment'] == 'good' and e.entity_map]
+        good_lexes = (l for l in e.lexes if l['comment'] == 'good' and e.entity_map)
 
         for l in good_lexes:
 
-            lexicals = get_lexicalizations(l['text'],
-                                           l['template'],
-                                           e.entity_map)
-
-            if not lexicals:
-                w_errors.append((e, l['text'], l['template']))
+            lexicals = get_lexicalizations(l['text'], l['template'], e.entity_map)
 
             for lex_key, lex_values in lexicals.items():
                 lex_keys.add(lex_key)
+
                 for i, lex_value in enumerate(lex_values):
 
                     lex_value = normalize_text(lex_value)
@@ -191,11 +149,11 @@ def make_pretrained_abe_ref_dbs(dataset_name):
                         ref_db['2nd'][lex_key].add(lex_value)
 
 
-    # removes from 2nd refs the 1st
+    # remove das 1st as referências que aparecem como 2nd referência
     for lex_key in lex_keys:
-        ref_db['2nd'][lex_key] = ref_db['2nd'][lex_key] - ref_db['1st'][lex_key]
+        ref_db['1st'][lex_key] = ref_db['1st'][lex_key] - ref_db['2nd'][lex_key]
 
-    filename = ABE_REFERRER_COUNTER_FILENAME.format(dataset_name)
+    filename = f'abe_referrer_counter_{db_name}'
     referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
 
     ref_db = {k: dict(v) for k, v in ref_db.items()}
@@ -212,18 +170,18 @@ def load_template_selection_lm(db_names, n, lm_name):
     if lm_name == 'random':
         return RANDOM_LM
 
-    if lm_name == 'lower':
+    if lm_name == 'markov':
 
         db_names_id = '_'.join(sorted(db_names))
 
-        lm_filename = f'tems_lm_model_lower_{n}_{db_names_id}.arpa'
+        lm_filename = f'tems_lm_model_markov_{n}_{db_names_id}.arpa'
         lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
 
         return kenlm.Model(lm_filepath)
 
-    if lm_name == 'inv_lower':
+    if lm_name == 'inv_markov':
 
-        lm = load_template_selection_lm(db_names, n, 'lower')
+        lm = load_template_selection_lm(db_names, n, 'markov')
 
         def inv_score(t):
             return -1*lm.score(t)
@@ -288,21 +246,17 @@ def load_text_selection_lm(dataset_names, n, lm_name):
 
         return RANDOM_LM
 
-    if lm_name == 'lower':
+    if lm_name == 'markov':
 
-        import kenlm
-
-        lm_filename = 'txs_lm_model_lower_{}_{}.arpa'\
+        lm_filename = 'txs_lm_model_markov_{}_{}.arpa'\
             .format(n, '_'.join(sorted(dataset_names)))
         lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
 
         return kenlm.Model(lm_filepath)
 
-    if lm_name == 'inv_lower':
+    if lm_name == 'inv_markov':
 
-        import kenlm
-
-        lm_filename = 'txs_lm_model_lower_{}_{}.arpa'\
+        lm_filename = 'txs_lm_model_markov_{}_{}.arpa'\
             .format(n, '_'.join(sorted(dataset_names)))
         lm_filepath = os.path.join(PRETRAINED_DIR, lm_filename)
 

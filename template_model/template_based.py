@@ -1,7 +1,7 @@
 from collections import namedtuple
 from more_itertools import flatten
-from util import preprocess_so
 import re
+from preprocessing import *
 
 
 RE_FIND_SLOT_DEF = re.compile((r'\{(?P<slot_name>slot\d)\-(?P<slot_pos>\d)\}'))
@@ -38,7 +38,7 @@ class JustJoinTemplate:
 
     def __init__(self, predicate):
 
-        self.template_text = '{} ' + preprocess_so(predicate) + ' {}.'
+        self.template_text = '{slot-0-1} ' + preprocess_so(predicate) + ' {slot-1-1}.'
         # FIXME: adicionado apenas para fazer funcionar o len(t.template_triples)
         #    para calcular o tamanho do template
         self.slots = [('slot-0', 1), ('slot-1', 1)]
@@ -46,10 +46,11 @@ class JustJoinTemplate:
     def fill(self, refs):
 
         if len(refs) != 2:
-            raise ValueError(f'This template only accepts data w/ 1 triple.'
-                             f' Passed {triples}')
+            raise ValueError(f'This template only accepts data w/ 1 triple. Passed {refs}')
 
-        return self.template_text.format(*refs)
+        reg_data = dict(zip(self.slots_placeholders, refs))
+
+        return self.template_text.format(**reg_data)
 
     @property
     def slots_placeholders(self):

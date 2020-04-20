@@ -7,8 +7,8 @@ import sys
 logging.basicConfig(level='DEBUG')
 
 params = {
-        'tems_lm_name': 'lower',
-        'txs_lm_name': 'lower',
+        'tems_lm_name': 'markov',
+        'txs_lm_name': 'markov',
         'tems_lm_n': 4,
         'txs_lm_n': 4,
         'dp_scorer': 'markov',
@@ -22,7 +22,7 @@ params = {
         'fallback_template': 'jjt',
         'referrer': 'abe',
         'referrer_lm_n': 4,
-        'lp_a': 1,
+        'lp_a': 0,
         'lp_n': 0
 }
 

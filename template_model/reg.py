@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from util import preprocess_so
+from preprocessing import *
 from random import Random
 from collections import Counter
 from functools import partial
@@ -9,26 +9,23 @@ import logging
 from unidecode import unidecode
 
 
-TOKENIZER_RE = re.compile(r'(\W)')
-def normalize_text(text):
-
-    lex_detokenised = ' '.join(TOKENIZER_RE.split(text))
-    lex_detokenised = ' '.join(lex_detokenised.split())
-
-    return unidecode(lex_detokenised.lower())
-
-
 RE_IS_NUMBER = re.compile(r'^[\d\.,]+$')
+
+class PreprocessREG:
+    def __init__(self):
+        self.logger = logging.getLogger('PreprocessREG')
+
+    def refer(self, so, slot_name, slot_pos, template, max_refs):
+        self.logger.debug(f'{so}')
+        return [1.0], [preprocess_so(so)]
 
 
 class EmptyREGer:
-
-    def refer(self, s, slot_pos, slot_type, ctx):
-
+    def refer(self, so, slot_name, slot_pos, template, max_refs):
         return ''
 
 
-class FirstNameOthersPronounREG:
+class FirstSecondREG:
 
     def __init__(self, ref_db, ref_lm):
         self.ref_db = ref_db
@@ -53,10 +50,11 @@ class FirstNameOthersPronounREG:
 
         def score_reg(r):
 
-            text = template.template_text.replace(slot, r.replace(' ', '_'))
+            ref_id = text_to_id(r)
+            text = template.template_text.replace(slot, ref_id)
             score = self.score_ref(text)
 
-            self.logger.debug(f'{score:.3f} -> {r} -> {text}')
+            self.logger.debug(f'{score:.3f} -> {ref_id} -> {text}')
 
             return score
 

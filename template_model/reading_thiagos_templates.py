@@ -6,32 +6,7 @@ import pickle
 import glob
 import xml.etree.ElementTree as ET
 import os
-from unidecode import unidecode
-
-
-TOKENIZER_RE = re.compile(r'(\W)')
-def normalize_text(text):
-
-    lex_detokenised = ' '.join(TOKENIZER_RE.split(text))
-    lex_detokenised = ' '.join(lex_detokenised.split())
-
-    return unidecode(lex_detokenised.lower())
-
-
-RE_SPLIT_DOT_COMMA = re.compile(r'([\.,\'])')
-
-
-def preprocess_text(t):
-
-    tt = (' '.join(' '.join(RE_SPLIT_DOT_COMMA.split(t)).split())).replace('@', '').lower()
-
-    tt = normalize_thiagos_template(tt)
-
-    # se há um ponto final grudado numa palavra, separa ele da palavra que vem antes
-    if tt[-1] == '.' and tt[-2] != ' ':
-        tt = f'{tt[:-1]} .'
-    
-    return tt
+from preprocessing import *
 
 
 # usado na extração de expressões de referência
@@ -42,19 +17,6 @@ RE_MATCH_TEMPLATE_KEYS_LEX = re.compile((r'(AGENT\\-\d|PATIENT\\-\d'
 RE_MATCH_TEMPLATE_KEYS = re.compile(r'(AGENT\-\d|PATIENT\-\d|BRIDGE\-\d)')
 TRANS_ESCAPE_TO_RE = str.maketrans('-', '_', '\\')
 
-RE_SPACE_BEFORE_COMMA_DOT = re.compile(r'\s(?=\.|,|:|;|!)')
-RE_SPACE_AFTER_COMMA = re.compile(r',(\w)')
-# RE_SPACES_INSIDE_QUOTES = re.compile(r'"\s?(.*?)\s?"')
-RE_SPACES_INSIDE_QUOTES = re.compile(r'(?<=")(\s(.*?)\s)(?=")')
-RE_SPACES_INSIDE_PARENS = re.compile(r'\(\s?(.*?)\s?\)')
-RE_SPACE_BEFORE_PARENS = re.compile(r'(\S)\(')
-RE_APOSTROPH_S = re.compile(r'\s[\"\']s')
-RE_WEIRD_QUOTE_MARKS = re.compile(r'(`{1,2})(?!s)')
-RE_WEIRD_QUOTES_MARKS2 = re.compile(r'`` (.*?) \'\'')
-RE_WEIRD_QUOTES_MARKS3 = re.compile(r'\'\' (.*?) \'\'')
-RE_WEIRD_QUOTES_MARKS4 = re.compile(r'\' (.*?) \'')
-RE_WEIRD_QUOTES_MARKS5 = re.compile(r'` (.*?) \'')
-RE_WEIRD_MINUS_SIGNS = re.compile(r'\s--\s')
 # {{}} -> é só para escapar as chaves
 SLOT_PLACEHOLDER = '{{{}-{}}}'
 
@@ -107,17 +69,6 @@ def extract_templates(dataset):
             entries_templates.append((e, lexes_templates))
 
     return entries_templates
-
-
-def normalize_thiagos_template(s):
-
-    s = RE_SPACE_BEFORE_COMMA_DOT.sub('', s)
-
-    s = RE_WEIRD_QUOTE_MARKS.sub('"', s)
-
-    s = RE_APOSTROPH_S.sub('\'s', s)
-
-    return RE_SPACES_INSIDE_QUOTES.sub(r'\g<2>', s)
 
 
 def delexicalize_triples(triples, entity_map):

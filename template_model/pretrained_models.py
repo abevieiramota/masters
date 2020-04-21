@@ -19,6 +19,7 @@ from testing_make_reg_lm_db import extract_text_reg_lm
 import re
 import kenlm
 from preprocessing import *
+from more_itertools import flatten
 
 
 

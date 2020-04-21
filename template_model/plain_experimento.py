@@ -91,7 +91,7 @@ class TextGenerationPipeline:
 
         self.logger.debug('Sentence Aggregation: {}'.format('\n'.join(f'{score:.3f} -> {sa}' for score, sa in zip(sas_scores, sas))))
 
-        return sas[:self.max_sa]
+        return [[tuple(sa_part) for sa_part in sa] for sa in sas[:self.max_sa]]
 
     def score_template(self, t, a):
 
@@ -184,6 +184,7 @@ class TextGenerationPipeline:
         best_score = float('-inf')
 
         for dp in self.select_dp(entry)[:self.max_dp]:
+
             for sa in self.select_sa(dp)[:self.max_sa]:
                 for ts in self.select_templates(entry, sa):
                     # combinação de templates para um particionamento

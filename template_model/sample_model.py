@@ -4,7 +4,7 @@ from reading_thiagos_templates import Entry, load_shared_task_test, load_test
 import logging 
 import sys
 
-logging.basicConfig(level='DEBUG')
+logging.basicConfig(level='INFO')
 
 params = {
         'tems_lm_name': 'markov',

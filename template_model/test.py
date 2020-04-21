@@ -15,23 +15,28 @@ logging.basicConfig(level=log_level)
 
 
 params = {
-        'tems_lm_name': 'markov',
-        'txs_lm_name': 'markov',
-        'tems_lm_n': 4,
-        'txs_lm_n': 3,
         'dp_scorer': 'markov',
-        'dp_scorer_n': 4,
+        'dp_scorer_n': 3,
+        'max_dp': 100,
+
         'sa_scorer': 'markov',
         'sa_scorer_n': 3,
-        'max_dp': 3,
-        'max_sa': 3,
-        'max_tems': 3,
-        'max_refs': 3,
+        'max_sa': 100,
+
+        'tems_lm_name': 'markov',
+        'tems_lm_n': 4,
+        'max_tems': 1,
         'fallback_template': 'jjt',
+
         'referrer': 'abe',
         'referrer_lm_n': 4,
+        'max_refs': 1,
+
+        'txs_lm_name': 'markov',
+        'txs_lm_n': 5,
+        
         'lp_n': 0,
-        'lp_a': 1
+        'lp_a': 0
 }
 
 tgp = make_model(params, ('train', 'dev'))

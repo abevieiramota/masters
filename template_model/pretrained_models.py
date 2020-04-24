@@ -322,7 +322,7 @@ def make_template_db(db_names):
 
             for t in [t for t in ts if t]:
 
-                template_db[(e.category, t.template_triples)].add(t)
+                template_db[t.template_triples].add(t)
 
     template_db = dict(template_db)
 

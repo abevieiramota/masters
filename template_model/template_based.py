@@ -70,19 +70,13 @@ class TemplateDatabase:
     def __init__(self, template_db_data, template_fallback):
 
         self.template_db_data = template_db_data 
-        self.categories = set(c for (c, _) in template_db_data.keys())
         self.template_fallback = template_fallback
 
-    def select(self, category, triples):
+    def select(self, triples):
         
         a_triples = abstract_triples(triples)
-        c_key = (category, a_triples)
 
-        if c_key in self.template_db_data:
-            ts = self.template_db_data[c_key]
-        else:
-            ts = list(flatten(self.template_db_data.get((c, a_triples), [])
-                              for c in self.categories))
+        ts = self.template_db_data.get(a_triples, [])
 
         if ts:
             return ts 

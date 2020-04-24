@@ -22,6 +22,7 @@ import sys
 sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, bleu
 from unidecode import unidecode
+from util import top_combinations
 
 
 TOKENIZER_RE = re.compile(r'(\W)')
@@ -130,14 +131,14 @@ class TextGenerationPipeline:
 
         return ' '.join(sents)
 
-    def select_templates(self, entry, sa):
+    def select_templates(self, sa):
 
         all_ts = []
         all_scores = []
 
         for sa_part in sa:
 
-            ts = self.template_db.select(entry.category, sa_part)
+            ts = self.template_db.select(sa_part)
 
             if not ts:
                 return []
@@ -147,14 +148,11 @@ class TextGenerationPipeline:
 
             all_ts.append(ts[:self.max_tems])
             all_scores.append(scores[:self.max_tems])
+
+        top_combs = top_combinations(all_scores, self.max_refs)
+
+        return [[all_ts[i][ix_] for i, ix_ in enumerate(ix)] for ix in top_combs]
         
-        all_ts_comb = list(product(*all_ts))
-        all_scores_comb = [sum(scores) for scores in product(*all_scores)]
-
-        selected_templates = sort_together([all_scores_comb, all_ts_comb], reverse=True)[1][:self.max_tems]
-
-        return selected_templates
-
     def select_references(self, template, triples):
 
         aligned_data = template.align(triples)
@@ -171,12 +169,9 @@ class TextGenerationPipeline:
             all_refs.append(refs)
             all_scores.append(scores)
 
-        all_refs_comb = list(product(*all_refs))
-        all_scores_comb = [sum(scores) for scores in product(*all_scores)]
+        top_combs = top_combinations(all_scores, self.max_refs)
 
-        selected_refs = sort_together([all_scores_comb, all_refs_comb], reverse=True)[1][:self.max_refs]
-
-        return selected_refs
+        return [[all_refs[i][ix_] for i, ix_ in enumerate(ix)] for ix in top_combs]
 
     def make_text(self, entry):
 
@@ -186,7 +181,7 @@ class TextGenerationPipeline:
         for dp in self.select_dp(entry)[:self.max_dp]:
 
             for sa in self.select_sa(dp)[:self.max_sa]:
-                for ts in self.select_templates(entry, sa):
+                for ts in self.select_templates(sa):
                     # combinação de templates para um particionamento
                     all_sent_texts = []
 

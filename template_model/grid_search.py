@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 from reading_thiagos_templates import load_dataset, Entry
-from gerar_base_sentence_aggregation import SentenceAggregationFeatures
-from gerar_base_discourse_planning import DiscoursePlanningFeatures
 import os
 from plain_experimento import make_model
 import sys
@@ -13,31 +11,23 @@ sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, evaluate_system
 
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TEMS_LM_TEXT_FILENAME = 'tems_lm_text.txt'
-TEMS_LM_MODEL_FILENAME = 'tems_lm.arpa'
-TXS_LM_TEXT_FILENAME = 'txs_lm_text.txt'
-TXS_LM_MODEL_FILENAME = 'txs_lm.arpa'
-TEMPLATE_DB_FILENAME = 'template_db'
-KENLM = os.path.join(BASE_DIR, '../../kenlm/build/bin/lmplz')
-
 grid =  [
     {
-        'tems_lm_name': ['lower'],
-        'txs_lm_name': ['lower'],
-        'tems_lm_n': [3, 4],
-        'txs_lm_n': [3, 4],
+        'tems_lm_name': ['markov'],
+        'txs_lm_name': ['markov'],
+        'tems_lm_n': [3, 4, 5],
+        'txs_lm_n': [3, 4, 5],
         'dp_scorer': ['markov'],
-        'dp_scorer_n': [3, 4],
+        'dp_scorer_n': [3, 4, 5],
         'sa_scorer': ['markov'],
-        'sa_scorer_n': [3, 4],
-        'max_dp': [5, 10],
-        'max_sa': [5, 10],
-        'max_tems': [1, 2],
-        'max_refs': [1, 2],
+        'sa_scorer_n': [3, 4, 5],
+        'max_dp': [3],
+        'max_sa': [3],
+        'max_tems': [3],
+        'max_refs': [3],
         'fallback_template': ['jjt'],
         'referrer': ['abe'],
-        'referrer_lm_n': [3, 4],
+        'referrer_lm_n': [3, 4, 5],
         'lp_n': [0],
         'lp_a': [0]
     }

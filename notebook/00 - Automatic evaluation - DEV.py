@@ -74,7 +74,6 @@ elapsed_time_df = pd.concat(elapsed_time_dfs)
 scores_all = scores_df.loc[(slice(None), 'all-cat', slice(None)), :].reset_index(level=[1, 2], drop=True)
 
 df_all = pd.merge(scores_all, params_df, left_index=True, right_index=True)
-df_all = pd.merge(df_all, elapsed_time_df, left_index=True, right_index=True)
 
-cols = ['bleu', 'meteor', 'ter', 'elapsed_time', 'dp_scorer_n', 'sa_scorer_n', 'tems_lm_n', 'referrer_lm_n', 'txs_lm_n', 'max_dp', 'max_sa', 'max_refs', 'max_tems']
+cols = ['bleu', 'meteor', 'ter', 'dp_scorer_n', 'sa_scorer_n', 'tems_lm_n', 'referrer_lm_n', 'txs_lm_n', 'max_dp', 'max_sa', 'max_refs', 'max_tems']
 df_all = df_all[cols]

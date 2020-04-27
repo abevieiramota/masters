@@ -25,12 +25,12 @@ params = {
 
         'tems_lm_name': 'markov',
         'tems_lm_n': 5,
-        'max_tems': 4,
+        'max_tems': 2,
         'fallback_template': 'jjt',
 
         'referrer': 'abe',
         'referrer_lm_n': 3,
-        'max_refs': 5,
+        'max_refs': 2,
 
         'txs_lm_name': 'markov',
         'txs_lm_n': 5,

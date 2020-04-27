@@ -42,6 +42,7 @@ class JustJoinTemplate:
         # FIXME: adicionado apenas para fazer funcionar o len(t.template_triples)
         #    para calcular o tamanho do template
         self.slots = [('slot-0', 1), ('slot-1', 1)]
+        self.template_triples = [Triple('None', predicate, 'None')]
 
     def fill(self, refs):
 

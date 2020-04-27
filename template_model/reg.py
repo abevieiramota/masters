@@ -58,7 +58,7 @@ class FirstSecondREG:
         else:
             refs = refs_2nd
 
-        refs = refs_1st | refs_2nd
+        #refs = refs_1st | refs_2nd
 
         scores = [score_reg(r) for r in refs]
         scores, sorted_refs = sort_together([scores, refs], reverse=True)

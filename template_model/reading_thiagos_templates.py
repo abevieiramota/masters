@@ -32,11 +32,6 @@ Entry = namedtuple('Entry', ['eid',
                              'lexes',
                              'entity_map'])
 
-MAP_REF_TYPE_TO_KEY = dict(description='D',
-                           name='N',
-                           pronoun='P',
-                           demonstrative='E')
-
 
 def extract_templates(dataset):
 

@@ -101,7 +101,8 @@ class TextGenerationPipeline:
         text = t.fill(refs)
         score = self.tems_lm.score(text) / self.length_penalty(text.split())
 
-        self.logger.debug('Template Selection: {:.3f} -> {}'.format(score, text))
+        t_predicates = ' - '.join(t_.predicate for t_ in t.template_triples)
+        self.logger.debug('Template Selection - scoring: {:.3f} -> <{}> - {} -> {}'.format(score, t_predicates, t.template_text, text))
 
         return score
 
@@ -150,28 +151,47 @@ class TextGenerationPipeline:
             all_scores.append(scores[:self.max_tems])
 
         top_combs = top_combinations(all_scores, self.max_refs)
+        top_template_combs = [[all_ts[i][ix_] for i, ix_ in enumerate(ix)] for ix in top_combs]
 
-        return [[all_ts[i][ix_] for i, ix_ in enumerate(ix)] for ix in top_combs]
+        self.logger.debug('Template Selection - top combs: {}'.format('\n'.join(' ;; '.join(t.template_text for t in tems) for tems in top_template_combs)))
+
+        return top_template_combs
         
-    def select_references(self, template, triples):
+    def select_references_with_texts(self, ts, sa):
 
-        aligned_data = template.align(triples)
-        # retorna um map de slot_name -> so
         all_refs = []
         all_scores = []
-        # contém os identificadores de slots -> usado para dar os replaces no template text
 
-        for slot_name, slot_pos in template.slots:
-            so = aligned_data[slot_name]
-            # dado que encaixa no slot?
-            scores, refs = self.reg.refer(so, slot_name, slot_pos, template, self.max_refs)
-            # conjunto de referências encontradas para o dado (so) dado o contexto (ctx) e limitado a uma quantidade (self.max_refs)
-            all_refs.append(refs)
-            all_scores.append(scores)
+        for template, triples in zip(ts, sa):        
+
+            aligned_data = template.align(triples)
+            # retorna um map de slot_name -> so
+
+            for slot_name, slot_pos in template.slots:
+                so = aligned_data[slot_name]
+                # dado que encaixa no slot?
+                scores, refs = self.reg.refer(so, slot_name, slot_pos, template, self.max_refs)
+                # conjunto de referências encontradas para o dado (so) dado o contexto (ctx) e limitado a uma quantidade (self.max_refs)
+                all_refs.append(refs)
+                all_scores.append(scores)
 
         top_combs = top_combinations(all_scores, self.max_refs)
+        top_refs = [[all_refs[i][ix_] for i, ix_ in enumerate(ix)] for ix in top_combs]
 
-        return [[all_refs[i][ix_] for i, ix_ in enumerate(ix)] for ix in top_combs]
+        top_texts = []
+
+        for top_ref in top_refs:
+
+            sents = []
+            ix_ini = 0
+            for template in ts:
+                ix_fim = ix_ini + len(template.slots)
+                sent = template.fill(top_ref[ix_ini:ix_fim])
+                sents.append(sent)
+                ix_ini = ix_fim
+            top_texts.append(' '.join(sents))
+
+        return top_texts
 
     def make_text(self, entry):
 
@@ -182,25 +202,8 @@ class TextGenerationPipeline:
 
             for sa in self.select_sa(dp)[:self.max_sa]:
                 for ts in self.select_templates(sa):
-                    # combinação de templates para um particionamento
-                    all_sent_texts = []
+                    for generated_text in self.select_references_with_texts(ts, sa):
 
-                    for sa_part, template in zip(sa, ts):
-                        # pares de parte e template
-
-                        sent_texts = []
-                        # sentenças que dá para construir com o template e as referências
-
-                        for refs in self.select_references(template, sa_part):
-
-                            sent_text = template.fill(refs)
-                            sent_texts.append(sent_text)
-
-                        all_sent_texts.append(sent_texts)
-
-                    for sents in product(*all_sent_texts):
-
-                        generated_text = ' '.join(sents)
                         generated_score = self.score_text(generated_text.lower())
 
                         self.logger.debug(f'Text Selection: {generated_score:.3f} -> {generated_text}')

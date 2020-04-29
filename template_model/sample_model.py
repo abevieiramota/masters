@@ -20,8 +20,10 @@ params = {
         'fallback_template': 'jjt',
         'referrer': 'abe',
         'referrer_lm_n': 4,
-        'lp_a': 1,
-        'lp_n': 0
+        'lp_txs_a': 1,
+        'lp_txs_n': 0,
+        'lp_tems_a': 0,
+        'lp_tems_n': 0
 }
 
 tgp = make_model(params, ('train', 'dev'))

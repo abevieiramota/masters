@@ -28,8 +28,10 @@ grid =  [
         'fallback_template': ['jjt'],
         'referrer': ['abe'],
         'referrer_lm_n': [3, 4, 5],
-        'lp_n': [0],
-        'lp_a': [0]
+        'lp_tems_n': [0],
+        'lp_tems_a': [0],
+        'lp_txs_n': [0],
+        'lp_txs_a': [0]
     }
 ]
 
@@ -55,6 +57,8 @@ for params in ParameterGrid(grid):
         model_name = hash(tuple(params.items()))
     else:
         model_name = params['model_name']
+
+    print(model_name)
 
     tgp = make_model(params, ('train',))
 
@@ -96,5 +100,4 @@ for params in ParameterGrid(grid):
                               ['all-cat'],
                               methods=['bleu', 'meteor', 'ter'])
 
-    print(model_name)
     print(results)

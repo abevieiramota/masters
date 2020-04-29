@@ -143,10 +143,6 @@ def make_pretrained_abe_ref_dbs(db_name):
                         ref_db['2nd'][lex_key].add(lex_value)
 
 
-    # remove das 1st as referências que aparecem como 2nd referência
-    for lex_key in lex_keys:
-        ref_db['1st'][lex_key] = ref_db['1st'][lex_key] - ref_db['2nd'][lex_key]
-
     filename = f'abe_referrer_counter_{db_name}'
     referrer_db_filepath = os.path.join(PRETRAINED_DIR, filename)
 

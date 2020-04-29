@@ -13,35 +13,51 @@ log_level = sys.argv[1] if len(sys.argv) > 1 else 'INFO'
 
 logging.basicConfig(level=log_level)
 
+n = 3
 
 params = {
         'dp_scorer': 'markov',
-        'dp_scorer_n': 4,
-        'max_dp': 100,
+        'dp_lm_n': 4,
+        'max_dp': n,
 
         'sa_scorer': 'markov',
-        'sa_scorer_n': 4,
-        'max_sa': 100,
+        'sa_lm_n': 5,
+        'max_sa': n,
 
         'tems_lm_name': 'markov',
-        'tems_lm_n': 5,
-        'max_tems': 2,
+        'tems_lm_n': 3,
+        'max_tems': n,
         'fallback_template': 'jjt',
+        'lp_tems_n': 0,
+        'lp_tems_a': 0,
 
         'referrer': 'abe',
         'referrer_lm_n': 3,
-        'max_refs': 2,
+        'max_refs': n,
 
         'txs_lm_name': 'markov',
         'txs_lm_n': 5,
-        
-        'lp_n': 0,
-        'lp_a': 0
+        'lp_txs_n': 0,
+        'lp_txs_a': 0
 }
 
 tgp = make_model(params, ('train', 'dev'))
 
-model_name = 'el_abzao'
+model_name = '{}{}{}{}{}__{}_{}_{}_{}_lp_tems_{}_{}_lp_txs_{}_{}'.format(
+    params['dp_lm_n'],
+    params['sa_lm_n'],
+    params['tems_lm_n'],
+    params['referrer_lm_n'],
+    params['txs_lm_n'],
+    params['max_dp'], 
+    params['max_sa'],   
+    params['max_tems'], 
+    params['max_refs'], 
+    params['lp_tems_n'], 
+    params['lp_tems_a'],
+    params['lp_txs_n'],
+    params['lp_txs_a']
+)
 
 # create model folder
 outdir = f"../data/models/test/{model_name}"
@@ -80,4 +96,5 @@ preprocess_model_to_evaluate(texts_outpath, 'test')
 results = evaluate_system(model_name, 'test', ['old-cat', 'all-cat'])
 
 print(model_name)
+print(elapsed_time)
 print(results)

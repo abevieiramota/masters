@@ -34,7 +34,7 @@ class FirstSecondREG:
 
         return normalize_text(preprocess_so(so))
 
-    def refer(self, so, slot_name, slot_pos, template, max_refs):
+    def refer(self, so, slot_name, slot_pos, template, max_refs, was_already_seen):
 
         refs_1st = self.ref_db['1st'].get(so, set())
         refs_1st.add(self.fallback(so))
@@ -53,12 +53,10 @@ class FirstSecondREG:
 
             return score
 
-        if slot_pos == '0' or not refs_2nd:
+        if not was_already_seen or not refs_2nd:
             refs = refs_1st 
         else:
             refs = refs_2nd
-
-        #refs = refs_1st | refs_2nd
 
         scores = [score_reg(r) for r in refs]
         scores, sorted_refs = sort_together([scores, refs], reverse=True)

@@ -1,6 +1,6 @@
 from pretrained_models import *
 
-ds = ('train', )
+ds = ('train', 'dev')
 
 #_ = make_dp_lm(ds, 3)
 #_ = make_dp_lm(ds, 4)
@@ -24,3 +24,4 @@ _ = make_sa_lm(ds, 5)
 #_ = make_text_selection_lm(ds, 3, 'markov')
 #_ = make_text_selection_lm(ds, 4, 'markov')
 #_ = make_text_selection_lm(ds, 5, 'markov')
+#_ = make_text_selection_lm(ds[:1], 7, 'markov')

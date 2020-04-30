@@ -93,7 +93,7 @@ with open((f"../data/models/test/{model_name}/elapsed_time.txt"), 'w') as f:
 
 preprocess_model_to_evaluate(texts_outpath, 'test')
 
-results = evaluate_system(model_name, 'test', ['old-cat', 'all-cat'])
+results = evaluate_system(model_name, 'test', ['old-cat', 'new-cat'])
 
 print(model_name)
 print(elapsed_time)

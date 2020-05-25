@@ -4,6 +4,7 @@ from more_itertools import partitions, sort_together, flatten
 from template_based import abstract_triples
 from functools import partial, reduce
 from operator import mul
+from collections import Counter
 from pretrained_models import (
         load_referrer,
         load_template_selection_lm,
@@ -213,6 +214,8 @@ class TextGenerationPipeline:
 
         best_text = None
         best_score = float('-inf')
+        n_explored_texts = 0
+        kind = None
 
         for dp in self.select_dp(entry):
             for sa in self.select_sa(dp):
@@ -220,17 +223,26 @@ class TextGenerationPipeline:
                     for generated_text in self.select_references_with_texts(ts, sa):
 
                         generated_score = self.score_text(generated_text.lower())
-
                         self.logger.debug(f'Text Selection: {generated_score:.3f} -> {generated_text}')
+                        n_explored_texts += 1
 
                         if generated_score > best_score:
                             best_score = generated_score
                             best_text = generated_text
+                            if all(isinstance(t, self.fallback_template) for t in ts):
+                                kind = 'all_fallback'
+                            elif any(isinstance(t, self.fallback_template) for t in ts):
+                                kind = 'some_fallback'
+                            else:
+                                kind = 'no_fallback'
+
 
         if not best_text:
             best_text = self.make_fallback_text(entry)
+            n_explored_texts += 1
+            kind = 'all_fallback'
 
-        return best_text
+        return best_text, n_explored_texts, kind
 
 
 def make_model(params, train_set):

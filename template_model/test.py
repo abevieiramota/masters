@@ -7,13 +7,14 @@ import logging
 import sys
 sys.path.append('../evaluation')
 from evaluate import preprocess_model_to_evaluate, evaluate_system
+from collections import Counter
 
 
 log_level = sys.argv[1] if len(sys.argv) > 1 else 'INFO'
 
 logging.basicConfig(level=log_level)
 
-n = 3
+n = 6
 
 params = {
         'dp_scorer': 'markov',
@@ -77,14 +78,23 @@ test = load_shared_task_test()
 import time 
 
 ini = time.time()
+total_explored_texts = {'seen': 0, 'unseen': 0}
+total_by_kind = {'seen': Counter(), 'unseen': Counter()}
 
 with open(texts_outpath, 'w', encoding='utf-8') as f:
     template_infos = []
     for i, e in enumerate(test):
-        text = tgp.make_text(e)
+        text, n_explored_texts, kind = tgp.make_text(e)
         f.write(f'{text}\n')
         if i % 100 == 0:
             print(i)
+
+        if i <= 970:
+            total_explored_texts['seen'] += n_explored_texts
+            total_by_kind['seen'][kind] += 1
+        else:
+            total_explored_texts['unseen'] += n_explored_texts
+            total_by_kind['unseen'][kind] += 1
 
 end = time.time()
 elapsed_time = end - ini 
@@ -97,4 +107,6 @@ results = evaluate_system(model_name, 'test', ['old-cat', 'new-cat'])
 
 print(model_name)
 print(elapsed_time)
+print(total_explored_texts)
+print(total_by_kind)
 print(results)
